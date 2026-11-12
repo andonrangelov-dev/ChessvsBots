@@ -1,7 +1,7 @@
 {
   "name": "chess-vs-bots",
   "private": true,
-  "version": "1.0.7",
+  "version": "1.0.11",
   "description": "Chess vs Bots - offline chess against 40 bots and 5 legends (Stockfish WASM), Capacitor 8. No ads, no purchases. GPL v3.",
   "scripts": {
     "ios:prepare": "node scripts/setup-native.mjs",

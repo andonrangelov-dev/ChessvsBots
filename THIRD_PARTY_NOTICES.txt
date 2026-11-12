@@ -9,6 +9,7 @@ Included components
   Files: www/engine/stockfish-19-lite-single.js and www/engine/stockfish-19-lite-single.wasm (unmodified from the npm package).
 - Stockfish NNUE network (small net, embedded in the lite build) — GPL v3; nets by Chris Bao (sscg13) and the Stockfish team. https://tests.stockfishchess.org/nns?network_name=nn-61e7af4bb97d
 - chess.js — BSD-2-Clause, Copyright (c) 2025 Jeff Hlywa. (www/chess.min.js, licence text kept in the file header)
+- flag-icons 7.x (flags of all countries, www/flags/*.svg, optimised with svgo; www/flags/ol.svg is drawn for this app) — MIT, Copyright (c) 2013 Panayiotis Lipiridis. https://github.com/lipis/flag-icons (tools/build_flags.mjs)
 - Capacitor (core, ios, status-bar, haptics, share) — MIT, Copyright (c) Ionic.
 - esbuild (build tool only, not shipped) — MIT, Evan Wallace.
 

@@ -34,7 +34,7 @@ workflows:
         script: |
           npm run ios:prepare
           /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Chess vs Bots" ios/App/App/Info.plist || /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string Chess vs Bots" ios/App/App/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.7" ios/App/App/Info.plist || true
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.11" ios/App/App/Info.plist || true
       - name: Apply Apple signing files
         script: xcode-project use-profiles
       - name: Update iOS build number
@@ -83,7 +83,7 @@ workflows:
         script: |
           npm run ios:prepare
           /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Chess vs Bots" ios/App/App/Info.plist || /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string Chess vs Bots" ios/App/App/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.7" ios/App/App/Info.plist || true
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.11" ios/App/App/Info.plist || true
       - name: Apply Apple signing files
         script: xcode-project use-profiles
       - name: Update iOS build number
