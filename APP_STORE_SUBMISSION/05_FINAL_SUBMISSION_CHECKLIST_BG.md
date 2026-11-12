@@ -6,8 +6,8 @@
 - [ ] Приложението е безплатно, без реклами и без покупки: НЯМА IAP, AdMob и app-ads.txt.
 - [x] `TACTICS_URL` е зададен (App Store адрес на Chess Tactics Gym).
 - [ ] Тествай на iPad (портрет и пейзаж): голяма дъска, бутони Начало/Настройки/Цял екран.
-- [ ] `www/privacy-config.js`: истински имейл и `SOURCE_URL` (публично GitHub репо) → `node tools/build_privacy.js` → публикуване (напр. Netlify).
-- [ ] Публичният адрес: /privacy.html , /support.html отварят.
+- [ ] `www/privacy-config.js`: истински имейл и `SOURCE_URL` (https://github.com/andonrangelov-dev/ChessvsBots/ — зададено) → `node tools/build_privacy.js` → публикуване (напр. Netlify).
+- [ ] Публичният адрес https://stirap.eu/ChessvsBots/privacy.html и /support.html отварят (Privacy Policy URL е задължителен за iOS в App Store Connect).
 - [ ] GPL v3: GitHub репото е публично, съдържа LICENSE, COPYING, THIRD_PARTY_NOTICES.txt; About екранът води към него.
 - [ ] TestFlight build (workflow `chess-testflight`): ход на бота, ревю, бутонът „Шахматни пъзели“ (отваря Chess Tactics Gym), профил със снимка/камера, началната дъска след партия.
 - [ ] Production build (workflow `chess-appstore-production`) → качване за ревю.

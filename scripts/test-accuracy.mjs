@@ -7,7 +7,7 @@ const A = require('../www/accuracy.js');
 
 const close = (a, b, tolerance = 0.05) => assert.ok(Math.abs(a - b) <= tolerance, `${a} should be near ${b}`);
 const cpForWinPct = p => -Math.log(100 / p - 1) / 0.00368208;
-assert.equal(A.version, 3);
+assert.equal(A.version, 5);
 close(A.winPct(0), 50, 1e-10);
 close(A.winPct(100), 59.102, 0.1);
 close(A.winPct(-100), 40.898, 0.1);
@@ -15,13 +15,15 @@ close(A.winPct(500000), A.winPct(1000));
 assert.equal(A.moveAccuracy(50, 50), 100);
 assert.equal(A.moveAccuracy(50, 55), 100);
 assert.equal(A.moveAccuracy(50, 0) >= 0, true);
-// in an equal position the Lichess loss dominates, so the Lichess numbers are reproduced (up to 20 points lost)
-for (const [loss, expected] of [[2, 92.395], [5, 80.815], [10, 64.58], [20, 41.017]]) {
-  close(A.moveAccuracy(50, 50 - loss), expected, 0.07);
-  const cp = cpForWinPct(50 - loss);
-  const a = A.scoreGame([0, cp], ['x'], ['y']);
-  close(a.moves[0].score, expected, 0.07);
-  assert.equal(a.moves[0].loss.toFixed(3), loss.toFixed(3));
+// the move-accuracy curve: Lichess' shape with the faster decay fitted to Chess.com (0.08 instead of 0.04354), +1 allowance when something was lost
+const curve = loss => Math.min(100, 103.1668100711649 * Math.exp(-0.08 * loss) - 3.166924740191411 + 1);
+for (const loss of [0.5, 2, 5, 10, 20, 40]) {
+  close(A.moveAccuracy(50, 50 - loss), curve(loss), 1e-9);
+  const lichess = 103.1668100711649 * Math.exp(-0.04354415386753951 * loss) - 3.166924740191411 + 1;
+  assert.ok(A.moveAccuracy(50, 50 - loss) <= Math.min(100, lichess) + 1e-9, 'never more lenient than Lichess');
+  const a = A.scoreGame([0, cpForWinPct(50 - loss)], ['x'], ['y']);
+  close(a.moves[0].loss, loss, 1e-6);
+  close(a.moves[0].score, curve(loss), 1e-6);
 }
 const perfect = A.scoreGame([0, 0, 0, 0], ['a','b','c'], ['a','b','c']);
 assert.deepEqual([perfect.w, perfect.b], [100, 100]);
@@ -31,29 +33,34 @@ assert.equal(A.scoreGame([0, -5000], ['x'], ['x']).moves[0].score, 100, 'engine 
 assert.equal(A.scoreGame([0, -5000], ['x'], ['x']).moves[0].cls, 'best');
 assert.equal(A.classify(0, true), 'best');
 assert.equal(A.classify(0, false), 'excellent');
-assert.equal(A.classify(1, false), 'excellent');
-assert.equal(A.classify(3, false), 'good');
+assert.equal(A.classify(1.5, false), 'excellent');
+assert.equal(A.classify(2, false), 'good');
+assert.equal(A.classify(3.5, false), 'good');
+assert.equal(A.classify(5, false), 'inacc');
 assert.equal(A.classify(7, false), 'inacc');
-assert.equal(A.classify(15, false), 'mistake');
-assert.equal(A.classify(25, false), 'blunder');
+assert.equal(A.classify(10, false), 'mistake');
+assert.equal(A.classify(14, false), 'mistake');
+assert.equal(A.classify(15, false), 'blunder');
 assert.deepEqual(A.volatilityWeights([50,50,50]), [0.5,0.5]);
-// the extra centipawn term: no effect in an equal position for small losses ...
-assert.equal(A.moveLoss(50, 45, 0, -55).toFixed(2), '5.00');
-// ... but in decided positions, where the win% curve is flat, a bad move still costs something
-const lostRook = A.scoreGame([-800, -1250], ['x'], ['y']).moves[0];      // a side that is already lost throws a rook away
-assert.ok(lostRook.loss > 8 && lostRook.score < 60, 'rook thrown away in a lost position: ' + JSON.stringify(lostRook));
-const slip = A.scoreGame([1200, 1050], ['x'], ['y']).moves[0];            // 1.5 pawns at +12: a slip, not a disaster
-assert.ok(slip.loss > 1 && slip.loss < 5 && slip.cls !== 'best', 'slip at +12: ' + JSON.stringify(slip));
-assert.equal(A.scoreGame([1200, 1190], ['x'], ['y']).moves[0].cls, 'excellent', 'noise-level loss is excellent, not best');
-assert.equal(A.scoreGame([1200, 1190], ['x'], ['x']).moves[0].cls, 'best', 'the engine move is best');
-assert.ok(A.moveLoss(0, 0, 0, -99999) <= 100, 'loss is capped at 100');
-// the same bad moves in a lost game no longer hand the loser a high accuracy
-const losing = A.scoreGame([0,-300,-700,-1000,-1400,-1500,-1500,-1500,-1500], ['a','b','c','d','e','f','g','h'], []);
-assert.ok(losing.w < 60, 'a side that keeps losing material: ' + losing.w);
+// moveLoss is the plain Win% loss (no centipawn term since version 5), capped at 100 and never negative
+assert.equal(A.moveLoss(50, 45), 5);
+assert.equal(A.moveLoss(50, 60), 0);
+assert.ok(A.moveLoss(100, -50) <= 100);
+// noise in decided positions costs nothing: +20 pawns -> +12 pawns, or mate -> +9 pawns (the evaluation of a won position jumps around with a 350 ms search)
+assert.equal(A.scoreGame([2000, 1200], ['x'], ['y']).moves[0].cls, 'excellent');
+assert.equal(A.scoreGame([9990, 900], ['x'], ['y']).moves[0].loss < 3, true);
+// ... but throwing away a won game is a blunder
+assert.equal(A.scoreGame([300, -300], ['x'], ['y']).moves[0].cls, 'blunder');
+// the same game analysed twice with a jumpy won endgame gives (almost) the same accuracy
+const jumpyA = [0, 20, 0, 30, 0, 800, 900, 9990, 880, 9990, 900, 9990, 870, 9990, 890, 9990];
+const jumpyB = [0, 20, 0, 30, 0, 800, 900, 880, 9990, 900, 9990, 870, 9990, 890, 9990, 9990];
+const mv = jumpyA.slice(1).map((_, i) => 'm' + i);
+const ra = A.scoreGame(jumpyA, mv, []), rb = A.scoreGame(jumpyB, mv, []);
+assert.ok(Math.abs(ra.w - rb.w) < 6 && Math.abs(ra.b - rb.b) < 6, `stable under mate/no-mate jumps: ${ra.w}/${rb.w} ${ra.b}/${rb.b}`);
 assert.throws(() => A.scoreGame([0], ['x'], []), /evaluation/);
 assert.throws(() => A.scoreGame([0, NaN], ['x'], []), /Non-finite/);
 
-// A single extremely bad move is NOT treated as 1% in the harmonic mean.
+// A single extremely bad move is NOT treated as 1% (no harmonic mean any more: it is just a zero-ish score among many good ones).
 const mixed = A.scoreGame([0,-5000,-5000,-5000,-5000,0,0], ['a','b','c','d','e','f'], ['b','d','e','f']);
 assert.ok(mixed.w >= 0 && mixed.w <= 100 && mixed.b >= 0 && mixed.b <= 100);
 const fixture = JSON.parse(readFileSync(new URL('./fixtures/acc-games.json', import.meta.url), 'utf8'));
@@ -66,7 +73,21 @@ const rows = fixture.map(g => {
   return { rating: g.A, w: s.w, b: s.b };
 });
 const weak = rows.find(x => x.rating === 250), strong = rows.find(x => x.rating === 2800);
-assert.ok(weak.w < 70 && strong.w > 85 && strong.b > 85);
+assert.ok(weak.w < 60 && strong.w > 70 && strong.b > 80);
 assert.ok(weak.w + 15 < strong.w);
-console.log(`PASS: Lichess Accuracy numeric/edge tests and ${fixture.length} real-game fixtures`);
+// Calibration against Chess.com: 6 real games (12 players), raw Stockfish evaluations of this app + the accuracies Chess.com showed for them
+const cal = JSON.parse(readFileSync(new URL('./fixtures/chesscom-calibration.json', import.meta.url), 'utf8'));
+assert.equal(cal.length, 6);
+let sumDiff = 0, worst = 0, players = 0;
+for (const g of cal) {
+  const s = A.scoreGame(g.pov, g.moves, g.best);
+  for (const side of ['w', 'b']) {
+    const d = Math.abs(s[side] - g.chesscom[side].acc);
+    sumDiff += d; worst = Math.max(worst, d); players++;
+    assert.ok(d <= 9, `game ${g.id} ${side}: ${s[side].toFixed(1)} vs Chess.com ${g.chesscom[side].acc}`);
+  }
+}
+assert.ok(sumDiff / players <= 3.5, 'mean difference from Chess.com ' + (sumDiff / players).toFixed(2));
+console.log(`Chess.com calibration: mean difference ${(sumDiff / players).toFixed(2)} points, worst ${worst.toFixed(1)}`);
+console.log(`PASS: Accuracy numeric/edge tests and ${fixture.length} real-game fixtures`);
 console.log('Sample:', '250 Elo:', weak.w.toFixed(1), '2800 Elo:', strong.w.toFixed(1));

@@ -41,7 +41,7 @@ Powered by Stockfish, running entirely on your device. Chess vs Bots is free sof
 
 Keywords (max 100): chess,bot,computer,stockfish,offline,engine,board game,strategy,analysis,rating,elo
 Category: Games → Board (secondary: Strategy)
-Support URL: <your public support.html>
-Privacy Policy URL: <your public privacy.html>
+Support URL: https://stirap.eu/ChessvsBots/support.html
+Privacy Policy URL: https://stirap.eu/ChessvsBots/privacy.html
 Age rating: 4+ (no ads, no purchases, no mature content; the puzzle button opens the App Store / browser)
 Copyright: © 2026 Andon Rangelov

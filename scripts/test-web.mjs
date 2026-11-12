@@ -17,7 +17,7 @@ function loadPlaywright() {
 const { chromium } = loadPlaywright();
 
 const WWW = path.resolve('www');
-const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.wasm': 'application/wasm', '.webmanifest': 'application/manifest+json', '.txt': 'text/plain' };
+const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.wasm': 'application/wasm', '.webmanifest': 'application/manifest+json', '.txt': 'text/plain', '.svg': 'image/svg+xml' };
 const server = http.createServer((req, res) => {
   let p = decodeURIComponent(new URL(req.url, 'http://x').pathname); if (p === '/') p = '/index.html';
   const f = path.join(WWW, p);
@@ -189,7 +189,7 @@ try {
     assert.ok(await page.evaluate(() => !!__cvb.stats.recent[0].an));
     await page.click('#reviewBack');
     await page.click('#statsBtn');
-    assert.ok(await page.locator('.recRow').count() === 1);
+    assert.ok(await page.locator('#recList .recRow').count() === 1 && await page.locator('#oppList .recRow').count() === 1);
     await shot(page, '08_stats');
     ok('profile lists the game');
     assert.deepEqual(page.errors, []);
@@ -562,42 +562,38 @@ try {
     await page.context().close();
   }
 
-  // ── 14. accuracy: the published Lichess method (win%, per-move accuracy, volatility-weighted + harmonic mean) ──
+  // ── 14. accuracy: Lichess win% method with the decay and weighting calibrated to Chess.com (version 5) ──
   {
     const games = JSON.parse(readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'acc-games.json'), 'utf8'));
     const page = await newPage({});
     await page.goto(URL_); await page.waitForTimeout(400);
     const res = await page.evaluate(g => g.map(x => { const r = __cvb.scoreGame(x.pov, x.moves, x.best, { w: x.A === 'random' ? 600 : x.A, b: x.C }); return { A: x.A, C: x.C, w: Math.round(r.w), b: Math.round(r.b), n: x.moves.length }; }), games);
     const by = a => res.find(r => String(r.A) === String(a));
-    // Lichess server AccuracyPercent: win% lost -> move accuracy, including +1 uncertainty bonus
     const winCp = pct => -Math.log(100 / pct - 1) / 0.00368208;          // centipawns that give this win%
     const moveAcc = await page.evaluate(([c0]) => [2, 5, 10, 20].map(l => __cvb.scoreGame([0, c0[l]], ['x'], ['y'], { w: 1500, b: 1500 }).moves[0].score), [Object.fromEntries([2, 5, 10, 20].map(l => [l, winCp(50 - l)]))]);
-    const want = [92.4, 80.8, 64.6, 41.0];
-    moveAcc.forEach((v, i) => assert.ok(Math.abs(v - want[i]) < 0.35, 'move accuracy ' + v + ' vs ' + want[i]));
+    const want = [2, 5, 10, 20].map(l => Math.min(100, 103.1668100711649 * Math.exp(-0.08 * l) - 3.166924740191411 + 1));
+    moveAcc.forEach((v, i) => assert.ok(Math.abs(v - want[i]) < 0.05 && (i === 0 || v < moveAcc[i - 1]), 'move accuracy ' + v + ' vs ' + want[i]));
     // no loss of winning chances (even a gain) = 100
     assert.equal(await page.evaluate(() => __cvb.scoreGame([0, 200], ['x'], ['y'], { w: 1500, b: 1500 }).moves[0].score), 100);
     // weak play scores clearly lower than engine play; engine play stays high
-    assert.ok(by(250).w <= 70, 'bot 250 accuracy ' + by(250).w);
+    assert.ok(by(250).w <= 60, 'bot 250 accuracy ' + by(250).w);
     assert.ok(by(510).w <= 70, 'bot 510 accuracy ' + by(510).w);
-    assert.ok(by(2800).w >= 85 && by(2800).b >= 85, 'engine vs engine ' + by(2800).w + '/' + by(2800).b);
+    assert.ok(by(2800).w >= 70 && by(2800).b >= 80, 'engine vs engine ' + by(2800).w + '/' + by(2800).b);
     assert.ok(by(250).w + 15 < by(2800).w, 'weak << engine');
     // 100 only when every move is the engine move
     for (const r of res) assert.ok(r.w < 100 && r.b < 100);
     const perfect = await page.evaluate(() => { const r = __cvb.scoreGame([0, 0, 0], ['a', 'b'], ['a', 'b'], { w: 1500, b: 1500 }); return [r.w, r.b]; });
     assert.deepEqual(perfect, [100, 100]);
-    // one blunder among good moves pulls the harmonic part down: clearly below the plain average of the moves
-    const mixed = await page.evaluate(() => { const pov = [0, 10, 0, 10, 0, 10, 0, -600, -590, -600, -590, -600, -590], mv = pov.slice(1).map((_, i) => 'm' + i); const r = __cvb.scoreGame(pov, mv, mv.map((m, i) => i % 2 === 0 && i !== 6 ? m : null), { w: 1500, b: 1500 }); const sc = r.moves.filter((_, i) => i % 2 === 0).map(m => m.score); return { acc: r.w, mean: sc.reduce((a, b) => a + b, 0) / sc.length }; });
-    assert.ok(mixed.acc < mixed.mean - 1, 'accuracy ' + mixed.acc + ' below the plain mean ' + mixed.mean);
-    // classes: custom Chess vs Bots Win%-loss bands (not Chess.com labels)
-    const cls = await page.evaluate(() => [0, 40, 80, 150, 300, 900].map(l => __cvb.scoreGame([0, -l], ['x'], ['y'], { w: 1500, b: 1500 }).moves[0].cls));
-    assert.deepEqual(cls[0], 'excellent', 'not the engine move but nothing lost'); assert.ok(['excellent', 'good'].includes(cls[1])); assert.equal(cls[5], 'blunder');
-    // a lost side throwing material away is no longer almost free (the Lichess curve alone is flat there) ...
-    const thrown = await page.evaluate(() => __cvb.scoreGame([-800, -1250], ['x'], ['y']).moves[0]);
-    assert.ok(thrown.score < 60 && ['mistake', 'blunder'].includes(thrown.cls), 'rook thrown away in a lost position: ' + JSON.stringify(thrown));
-    // ... and only the engine's own move is called Best
+    // classes: custom Chess vs Bots Win%-loss bands (fitted to the Chess.com counts)
+    const cls = await page.evaluate(() => [0, 10, 30, 60, 120, 250, 900].map(l => __cvb.scoreGame([0, -l], ['x'], ['y'], { w: 1500, b: 1500 }).moves[0].cls));
+    assert.deepEqual(cls, ['excellent', 'excellent', 'good', 'inacc', 'mistake', 'blunder', 'blunder'], 'class bands: ' + cls.join(','));
+    // only the engine's own move is called Best
     assert.equal(await page.evaluate(() => __cvb.scoreGame([300, 295], ['x'], ['x']).moves[0].cls), 'best');
+    // evaluations of won positions that jump around (mate <-> +9 pawns) are no longer counted as blunders
+    const jump = await page.evaluate(() => __cvb.scoreGame([800, 9990, 880, 9990], ['x', 'y', 'z'], []).moves.map(m => m.cls));
+    assert.ok(jump.every(c => c === 'excellent'), 'jumpy decided evaluations: ' + jump.join(','));
     console.log('    accuracy by strength:', res.map(r => r.A + ':' + r.w + '/' + r.C + ':' + r.b).join('  '));
-    ok('accuracy by the Lichess method (2/5/10/20 points lost = ' + moveAcc.map(v => v.toFixed(1)).join('/') + '), perfect play = 100, harmonic part punishes blunders, custom Win%-loss classes');
+    ok('accuracy: Lichess Win% + Chess.com-calibrated decay (2/5/10/20 points lost = ' + moveAcc.map(v => v.toFixed(1)).join('/') + '), perfect play = 100, class bands 1.5/3.5/7/14, no blunders from evaluation noise in decided positions');
     await page.context().close();
   }
 
@@ -628,7 +624,7 @@ try {
 
   // ── 16. Home / Settings / Full view buttons on every page; link to Chess Tactics Gym ──
   {
-    const URL_TACTICS = 'https://apps.apple.com/bg/app/chess-tactics-gym-train-chess/id6830729167';
+    const URL_TACTICS = 'https://apps.apple.com/app/chess-tactics-gym-train-chess/id6830729167';
     for (const theme of ['dark', 'light']) {
       const page = await newPage({});
       await page.addInitScript(t => localStorage.setItem('chessvsbots_prefs', JSON.stringify({ theme: t })), theme);
@@ -939,6 +935,157 @@ try {
     assert.deepEqual(page.errors.filter(e => !/Failed to load resource/.test(e)), []);
     await old.context().close(); await page.context().close();
     ok('players: up to 5 on one device, outline picture until chosen, swipeable carousel, own rating / statistics / game in progress, remove a player, migration of the old single profile');
+  }
+
+  // ── 22. v1.0.9: "Suggested" label, all countries + Olympic flag, home board of another player, statistics by period / opponent, PGN import ──
+  {
+    const probe = await newPage({ viewport: { width: 390, height: 844 } });
+    await probe.goto(URL_); await probe.waitForTimeout(400);
+    const ids = await probe.evaluate(() => ({ a: Bots.list[3].id, b: Bots.list[5].id, ea: Bots.list[3].elo }));
+    // suggested bot is labelled
+    await probe.click('#playBtn');
+    assert.equal(await probe.locator('.botTile.rec .tRec').count(), 1, 'one "Suggested" label under the recommended bot');
+    assert.equal(await probe.locator('.botTile .tRec').count(), 1);
+    // all countries + the Olympic flag in the profile
+    await probe.click('.screen.active .back'); await probe.click('#homeProfile');
+    const nopt = await probe.locator('#profCountry option').count();
+    assert.ok(nopt >= 245, 'all countries in the list: ' + nopt);
+    assert.equal(await probe.locator('#profCountry option[value="OL"]').count(), 1);
+    for (const cc of ['NZ', 'JP', 'OL', 'XK']) {
+      await probe.selectOption('#profCountry', cc);
+      await probe.waitForFunction(() => { const i = document.querySelector('#profFlag .flag'); return i && (i.tagName !== 'IMG' || i.complete); }, null, { timeout: 5000 });
+      assert.ok(await probe.evaluate(async () => { const i = document.querySelector('#profFlag img'); return !i || (await fetch(i.src)).ok; }), 'flag file exists for ' + cc);
+      assert.ok((await probe.innerHTML('#profFlag')).includes(cc), 'flag ' + cc);
+    }
+    // every flag file is valid SVG (a broken file shows as a broken picture)
+    const badFlags = await probe.evaluate(async () => { const bad = []; for (const cc of Avatars.ALL_CODES) { const t = await (await fetch('flags/' + cc.toLowerCase() + '.svg')).text(); const d = new DOMParser().parseFromString(t, 'image/svg+xml'); if (d.querySelector('parsererror') || !d.documentElement.getAttribute('viewBox')) bad.push(cc); } return bad; });
+    assert.deepEqual(badFlags, [], 'invalid flag files');
+    assert.ok(await probe.evaluate(() => Avatars.ALL_CODES.length) >= 245);
+    assert.equal(await probe.evaluate(() => __cvb.profile && __cvb.profile.cc || 'x'), 'XK');
+    await probe.selectOption('#profCountry', 'OL'); await probe.click('.screen.active .back');
+    assert.ok((await probe.innerHTML('#homeProfile')).includes('flags/ol.svg'), 'Olympic flag on the home screen');
+    assert.deepEqual(probe.errors.filter(e => !/Failed to load resource/.test(e)), []);
+    await probe.context().close();
+
+    const scholar = 'e2e4 e7e5 d1h5 b8c6 f1c4 g8f6 h5f7'.split(' ');
+    const DAY = 86400000, now = Date.now();
+    const game = (bot, ago, res, delta, color) => ({ id: now - ago, t: now - ago, bot, color: color || 'w', res, reason: 'checkmate', delta, after: 1000, moves: scholar, assisted: false, stars: res === 'w' ? 3 : 0 });
+    const seed = { rating: 1010, peak: 1010, games: 4, w: 2, d: 1, l: 1, best: ids.ea, bots: {}, stars: {},
+      hist: [{ t: now - 200 * DAY, r: 1000 }, { t: now - 40 * DAY, r: 990 }, { t: now - DAY, r: 1005 }, { t: now - 600000, r: 1010 }],
+      recent: [game(ids.a, 600000, 'w', 5), game(ids.a, DAY, 'w', 15), game(ids.a, 40 * DAY, 'l', -10), game(ids.b, 200 * DAY, 'd', 0)] };
+    const page = await newPage({ viewport: { width: 390, height: 844 } });
+    await page.addInitScript(([seed, other]) => {
+      if (localStorage.getItem('chessvsbots_seeded')) return; localStorage.setItem('chessvsbots_seeded', '1');
+      localStorage.setItem('chessvsbots_stats', JSON.stringify(seed));
+    }, [seed, null]);
+    await page.goto(URL_); await page.waitForTimeout(500);
+    await page.click('#statsBtn');
+    const tile = async i => +(await page.locator('.tiles4 .tile b').nth(i).textContent());
+    assert.equal(await tile(0), 4, 'all time: 4 games');
+    // period dropdown
+    await page.click('#perBtn'); assert.ok(await page.isVisible('#perMenu'));
+    assert.equal(await page.locator('.perItem').count(), 5);
+    assert.equal(await page.locator('.perItem.sel .perCheck').count(), 1);
+    await shot(page, '22_period_menu');
+    await page.click('.perItem[data-p="30"]');
+    assert.equal(await tile(0), 2, '30 days: 2 games'); assert.equal(await tile(1), 2);
+    assert.equal(await page.locator('#oppList .recRow').count(), 1);
+    await page.click('#perBtn'); await page.click('.perItem[data-p="7"]');
+    assert.equal(await tile(0), 2, '7 days: the game from a day ago and the one from minutes ago');
+    await page.click('#perBtn'); await page.click('.perItem[data-p="365"]');
+    assert.equal(await tile(0), 4);
+    assert.equal(await page.locator('#oppList .recRow').count(), 2, 'two opponents');
+    assert.equal(await page.evaluate(() => localStorage.getItem('chessvsbots_statsPeriod')), '"365"');
+    // all games against one bot, with date and time
+    await page.click('#oppList .recRow >> nth=0');
+    assert.ok((await page.textContent('.botHead')).includes('3'), 'three games against the first bot');
+    assert.equal(await page.locator('#botGames .recRow').count(), 3);
+    assert.match(await page.textContent('#botGames .recRow >> nth=0'), /\d{1,2}:\d{2}|[AP]M/, 'time of the game is shown');
+    await shot(page, '22_bot_games');
+    await page.click('#botGames .recRow >> nth=1');
+    await waitFor(page, () => document.getElementById('reviewBody').style.display !== 'none', 60000);
+    // names and ratings above / below the board; move counts of both players
+    const top = await page.textContent('#revTop'), bottomTxt = await page.textContent('#revBottom');
+    assert.ok(top.includes(`(${ids.ea})`), 'the opponent with his rating above the board: ' + top);
+    assert.ok(/\((98|99|100)\d\)/.test(bottomTxt), 'your name and rating before the game below the board: ' + bottomTxt);
+    assert.equal(await page.locator('#revKey .cntRow').count(), 2, 'move counts of both players');
+    assert.ok((await page.textContent('#revKey')).length > 20);
+    await page.click('#revFlip');
+    assert.ok((await page.textContent('#revBottom')).includes(`(${ids.ea})`), 'the bars turn with the board');
+    await shot(page, '22_review_bars');
+    await page.click('#reviewBack');
+    assert.equal(await page.locator('#botGames .recRow').count(), 3, 'back from the review returns to the list of that bot');
+    await page.click('#statsAllBots'); assert.equal(await page.locator('#oppList .recRow').count(), 2);
+
+    // analyse a game from a PGN
+    await page.click('#statsAnalyse');
+    assert.ok(await page.isVisible('#importText'));
+    await page.click('#importGo'); assert.ok((await page.textContent('#importErr')).length > 5, 'empty text is refused');
+    await page.fill('#importText', '[Event "x"]\n[SetUp "1"]\n[FEN "8/8/8/8/8/8/4k3/4K2R w K - 0 1"]\n\n1. Rh2+ Kd3 *');
+    await page.click('#importGo'); assert.ok((await page.textContent('#importErr')).length > 5, 'a game from another start position is refused');
+    await page.fill('#importText', 'hello world'); await page.click('#importGo');
+    assert.ok((await page.textContent('#importErr')).length > 5, 'nonsense is refused');
+    assert.equal(await page.locator('#importSideSeg').count(), 0, 'no choice of side any more: the names come from the file');
+    await page.fill('#importText', '[Event "Casual"]\n[White "Alice"]\n[Black "Bob"]\n[WhiteElo "1500"]\n[BlackElo "1420"]\n[Result "1-0"]\n\n1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7# 1-0');
+    await page.click('#importGo');
+    await waitFor(page, () => document.getElementById('reviewBody').style.display !== 'none', 60000);
+    assert.ok((await page.textContent('#revHead')).includes('Alice') && (await page.textContent('#revHead')).includes('Bob'));
+    assert.ok((await page.textContent('#revTiles')).includes('Alice') && (await page.textContent('#revTiles')).includes('Bob'));
+    assert.ok((await page.textContent('#revBottom')).includes('Alice') && (await page.textContent('#revBottom')).includes('(1500)'), 'White below the board with the rating from the file');
+    assert.ok((await page.textContent('#revTop')).includes('Bob') && (await page.textContent('#revTop')).includes('(1420)'), 'Black above the board');
+    const cards = await page.locator('#revKey .keyCard .cntRow').count();
+    assert.equal(cards, 2, 'moves of both players');
+    const cardTitles = await page.locator('#revKey .keyCard:has(.cntRow) b').allTextContents();
+    assert.ok(cardTitles.some(t => t.includes('Alice')) && cardTitles.some(t => t.includes('Bob')), 'titles with the names: ' + cardTitles.join('|'));
+    assert.ok(await page.evaluate(() => __cvb.rv.an.countsOpp && Object.values(__cvb.rv.an.countsOpp).reduce((a, b) => a + b, 0) === 3), 'Black has 3 moves');
+    assert.equal(await page.isVisible('#revRematch'), false, 'no rematch for an imported game');
+    assert.ok(await page.evaluate(() => __cvb.rv.an.acc.you != null));
+    await page.click('#reviewBack');
+    assert.equal(await page.locator('#impList .recRow').count(), 1, 'imported game listed');
+    await page.click('#statsAnalyse'); await page.fill('#importText', '[White "Alicia"]\n[Black "Bob"]\n\n1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7#'); await page.click('#importGo');
+    await waitFor(page, () => document.getElementById('reviewBody').style.display !== 'none', 60000);
+    await page.click('#reviewBack');
+    assert.equal(await page.locator('#impList .recRow').count(), 1, 'the same game is not stored twice');
+    assert.deepEqual(page.errors.filter(e => !/Failed to load resource/.test(e)), []);
+    await page.context().close();
+
+    // a player without games: the home board shows the last game of another player
+    const two = await newPage({ viewport: { width: 390, height: 844 } });
+    await two.addInitScript(([g]) => {
+      if (localStorage.getItem('chessvsbots_seeded')) return; localStorage.setItem('chessvsbots_seeded', '1');
+      localStorage.setItem('chessvsbots_profiles', JSON.stringify({ cur: 'p1', list: [{ id: 'p1', name: 'Anna', cc: '', av: { t: 'none' } }, { id: 'p2', name: 'Boris', cc: '', av: { t: 'none' } }] }));
+      localStorage.setItem('chessvsbots_stats_p2', JSON.stringify({ rating: 900, peak: 900, games: 1, w: 1, d: 0, l: 0, hist: [], bots: {}, best: 0, stars: {}, recent: [g] }));
+    }, [game(ids.a, 3600000, 'w', 5)]);
+    const blank = await newPage({ viewport: { width: 390, height: 844 } });
+    await blank.goto(URL_); await blank.waitForTimeout(400);
+    await two.goto(URL_); await two.waitForTimeout(500);
+    assert.notEqual(await two.innerHTML('#homePreview'), await blank.innerHTML('#homePreview'), "Anna has no game: Boris's last game is on the home board");
+    assert.ok((await two.textContent('#homeProfile')).includes('Anna'), 'the current player is still Anna');
+    await blank.context().close(); await two.context().close();
+    ok('v1.0.9: Suggested label, all countries + Olympic flag, home board falls back to another player, period dropdown, games per bot with date/time, PGN import');
+  }
+
+  // ── 23. 1000 games per player fit into the storage budget: the stored analyses of the oldest games are dropped first ──
+  {
+    const page = await newPage({ viewport: { width: 390, height: 844 } });
+    await page.goto(URL_); await page.waitForTimeout(400);
+    const r = await page.evaluate(() => {
+      const st = __cvb.stats, bot = Bots.list[3].id, mv = [];
+      const c = new Chess(); while (mv.length < 90) { const m = c.moves({ verbose: true }); if (!m.length || c.isGameOver()) break; const x = m[mv.length % m.length]; c.move(x); mv.push(x.from + x.to + (x.promotion || '')); }
+      const an = () => ({ version: 5, pov: mv.map((_, i) => i * 7 - 300).concat([0]), best: mv.slice(), cls: mv.map(() => 'good'), drop: mv.map(() => 1.5), gap: mv.map(() => 3.2), acc: { you: 80, bot: 70 }, counts: { best: 1, excellent: 2, good: 3, inacc: 0, mistake: 0, blunder: 0 }, countsOpp: { best: 1, excellent: 2, good: 3, inacc: 0, mistake: 0, blunder: 0 }, key: [], keyOpp: [] });
+      st.recent = []; st.imports = [];
+      for (let i = 0; i < 1000; i++) st.recent.push({ id: i, t: 1e12 - i * 1000, bot, color: 'w', res: 'w', reason: 'checkmate', delta: 5, after: 1000, moves: mv, assisted: false, stars: 3, an: an() });
+      const before = JSON.stringify(st).length;
+      __cvb.saveStats();
+      const stored = localStorage.getItem('chessvsbots_stats');
+      return { before, stored: stored ? stored.length : 0, n: st.recent.length, newest: !!st.recent[0].an, oldest: !!st.recent[999].an, withAn: st.recent.filter(x => x.an).length };
+    });
+    assert.ok(r.before > 900000, 'the test data is bigger than the budget: ' + r.before);
+    assert.ok(r.stored > 0 && r.stored <= 920000, 'stored size within the budget: ' + r.stored);
+    assert.equal(r.n, 1000, 'all 1000 games are kept'); assert.ok(r.newest && !r.oldest, 'analyses of the oldest games were dropped first'); assert.ok(r.withAn >= 20, "some analyses remain: " + r.withAn);
+    assert.deepEqual(page.errors.filter(e => !/Failed to load resource/.test(e)), []);
+    await page.context().close();
+    ok('storage: 1000 games per player (ten times more than before) fit; the stored analyses of the oldest games are dropped first');
   }
 
   console.log(`\nALL WEB TESTS PASSED (${passed} groups)`);
