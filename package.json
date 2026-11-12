@@ -1,0 +1,34 @@
+{
+  "name": "chess-vs-bots",
+  "private": true,
+  "version": "1.0.7",
+  "description": "Chess vs Bots - offline chess against 40 bots and 5 legends (Stockfish WASM), Capacitor 8. No ads, no purchases. GPL v3.",
+  "scripts": {
+    "ios:prepare": "node scripts/setup-native.mjs",
+    "web:check": "node --check www/game.js && node --check www/chess-core.js && node --check www/pieces-extra.js && node --check www/i18n.js && node --check www/engine.js && node --check www/accuracy.js && node --check www/avatars.js && node --check www/bots.js && node --check www/native-services.bundle.js",
+    "native:bundle": "node scripts/bundle-native.mjs",
+    "native:verify": "node scripts/verify-native-bundle.mjs",
+    "native:test": "node scripts/test-native-services.mjs",
+    "release:verify": "node scripts/verify-release-mode.mjs",
+    "icons": "npx capacitor-assets generate --iconBackgroundColor \"#0b1633\" --assetPath assets",
+    "i18n:check": "node scripts/check-i18n.mjs",
+    "test:web": "node scripts/test-web.mjs",
+    "test:accuracy": "node scripts/test-accuracy.mjs",
+    "test:engine": "node scripts/test-engine.mjs"
+  },
+  "dependencies": {
+    "@capacitor/core": "8.5.3",
+    "@capacitor/ios": "8.5.3",
+    "@capacitor/status-bar": "8.0.4",
+    "@capacitor/haptics": "8.0.2",
+    "@capacitor/share": "8.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3",
+    "esbuild": "^0.25.11"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "license": "GPL-3.0-or-later"
+}

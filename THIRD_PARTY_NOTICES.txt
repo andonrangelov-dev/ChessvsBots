@@ -1,0 +1,16 @@
+Chess vs Bots — third-party notices
+
+Chess vs Bots is free software, released under the GNU General Public License, version 3 or (at your option) any later version. See LICENSE and COPYING.
+The complete corresponding source code is public (link in the About screen of the app and in www/privacy-config.js, SOURCE_URL).
+
+Included components
+- Stockfish chess engine — GPL v3, Copyright (C) the Stockfish developers (T. Romstad, M. Costalba, J. Kiiski, G. Linscott and contributors). https://github.com/official-stockfish/Stockfish
+- stockfish.js 19 (npm package "stockfish" 19.0.1, WebAssembly build "lite, single-threaded") — GPL v3, Copyright (c) 2026 Chess.com, LLC; author Nathan Rugg. https://github.com/nmrugg/stockfish.js
+  Files: www/engine/stockfish-19-lite-single.js and www/engine/stockfish-19-lite-single.wasm (unmodified from the npm package).
+- Stockfish NNUE network (small net, embedded in the lite build) — GPL v3; nets by Chris Bao (sscg13) and the Stockfish team. https://tests.stockfishchess.org/nns?network_name=nn-61e7af4bb97d
+- chess.js — BSD-2-Clause, Copyright (c) 2025 Jeff Hlywa. (www/chess.min.js, licence text kept in the file header)
+- Capacitor (core, ios, status-bar, haptics, share) — MIT, Copyright (c) Ionic.
+- esbuild (build tool only, not shipped) — MIT, Evan Wallace.
+
+Artwork
+- Chess pieces, bot avatars (including the caricatures of five historical chess players) and the app icon are drawn for this app (GPL v3, same as the code). They are original drawings, not photographs or copies of existing images.

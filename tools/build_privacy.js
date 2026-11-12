@@ -1,0 +1,48 @@
+// Generates www/privacy.html (public URL for App Store Connect / Google Play) from i18n.js + privacy-config.js
+// Run:  node tools/build_privacy.js
+const fs = require('fs'), path = require('path'), vm = require('vm');
+const www = path.join(__dirname, '..', 'www');
+const ctx = { window: {} }; vm.createContext(ctx);
+vm.runInContext(fs.readFileSync(path.join(www, 'i18n.js'), 'utf8'), ctx);
+vm.runInContext(fs.readFileSync(path.join(www, 'privacy-config.js'), 'utf8'), ctx);
+const W = ctx.window, esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const langs = W.CHESS_LANGS;
+const nav = langs.map(l => `<a href="#${l.code}">${l.flag} ${esc(l.name)}</a>`).join(' ');
+const secs = langs.map(l => {
+  const d = W.CHESS_I18N[l.code];
+  return `<section id="${l.code}" lang="${l.code === 'pt' ? 'pt-BR' : l.code}"><h2>${esc(d.privacyPolicy)} — Chess vs Bots</h2><p class="upd">${esc(d.privacyUpdated)}</p>` +
+    d.priv.map(([h, p]) => `<h3>${esc(h)}</h3><p>${esc(p).replace('{email}', esc(W.PRIVACY_EMAIL))}</p>`).join('') + '</section>';
+}).join('\n');
+fs.writeFileSync(path.join(www, 'privacy.html'), `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Privacy Policy — Chess vs Bots</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:760px;margin:0 auto;padding:20px;line-height:1.55;color:#1a2233}
+nav{display:flex;flex-wrap:wrap;gap:8px 14px;margin-bottom:24px}nav a{color:#2a5bd7;text-decoration:none;font-weight:600}
+section{margin-bottom:48px;padding-bottom:24px;border-bottom:1px solid #d9e0ee}h2{margin-bottom:4px}h3{margin:20px 0 4px}.upd{color:#667;margin-top:0}p{margin:0}
+@media(prefers-color-scheme:dark){body{background:#101826;color:#e8eefc}nav a{color:#7fb0ff}section{border-color:#2a3a55}.upd{color:#9ab}}</style></head>
+<body><nav>${nav}</nav>
+${secs}
+</body></html>`);
+console.log('privacy.html written');
+
+// ── support.html (Support URL for App Store Connect) ────────────────────────
+fs.writeFileSync(path.join(www, 'support.html'), `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Support — Chess vs Bots</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:760px;margin:0 auto;padding:20px;line-height:1.55;color:#1a2233}
+a{color:#2a5bd7}h1{margin-bottom:4px}h2{margin:26px 0 4px}p{margin:6px 0}
+@media(prefers-color-scheme:dark){body{background:#101826;color:#e8eefc}a{color:#7fb0ff}}</style></head>
+<body><h1>Chess vs Bots — Support</h1>
+<p>Chess vs Bots is an offline chess game against 40 bot characters from different countries, from about 250 to about 2800 Elo, plus five chess legends. Choose your colour, take back moves, ask for a hint, offer a draw or resign, save a game in progress and review your game afterwards to see your biggest mistakes and best move. Your player rating grows with your wins.</p>
+<h2>No ads, no purchases</h2>
+<p>The app is free, has no advertising, no in-app purchases and no tracking. It has one button that opens our puzzle game <b>Chess Tactics Gym</b>.</p>
+<h2>Technical support</h2>
+<p>Please write to <a href="mailto:${esc(W.PRIVACY_EMAIL)}">${esc(W.PRIVACY_EMAIL)}</a> and include your device model, iOS version, app version and a short description of the problem. Please do not send passwords or other sensitive information.</p>
+<h2>Privacy</h2>
+<p>The game works offline and has no account. See the <a href="privacy.html">Privacy Policy</a>.</p>
+<h2>Open source</h2>
+<p>Chess vs Bots is free software released under the GNU General Public License v3 or later. The complete source code is public: <a href="${esc(W.SOURCE_URL)}">${esc(W.SOURCE_URL)}</a>.</p>
+<h2>Credits</h2>
+<p>Chess engine: Stockfish (GPL v3), compiled to WebAssembly and running entirely on your device (stockfish.js by Chess.com, Nathan Rugg and the Stockfish developers). Move validation by chess.js (BSD-2-Clause). Chess pieces and bot avatars are drawn for this app.</p>
+</body></html>`);
+console.log('support.html written');

@@ -1,0 +1,816 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#1c355d">
+<meta name="color-scheme" content="dark light">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Chess vs Bots">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<title>Chess vs Bots</title>
+<script>(function(){try{var t=localStorage.getItem('chessvsbots_prefs');var th='system';if(t){try{th=JSON.parse(t).theme||'system';}catch(e){}}var dark=th==='dark'||(th==='system'&&window.matchMedia&&matchMedia('(prefers-color-scheme:dark)').matches);document.documentElement.dataset.theme=dark?'dark':'light'}catch(e){}})();</script>
+<style>
+:root,[data-theme=dark]{
+  --bg:#1c355d;--panel:#142947;--panel-border:#3c5778;--btn:#182442;--btn2:#273e63;
+  --ink:#f5f9ff;--muted:#a4bfdc;--accent:#467cf4;--accent2:#6cc4ff;--border:#426188;
+  --done:#247f72;--input:#10233e;--overlay:#080f20bb;--modal:#203b60;--modal-border:#6482a7;
+  --toast:#081527;--pill:#294875;--pill-ink:#b7e1ff;--ok-ink:#9de5cc;
+  --sq-light:#ced9e4;--sq-dark:#5a8fa8;
+  --sq-sel:#f6f669;--sq-hint:#cdd16f;
+  --sq-move-from:#f6f66988;--sq-move-to:#f6f66966;--sq-legal:rgba(0,0,0,0.18);
+  --pc-white:#ffffff;--pc-black:#1a1a2e;
+  --easy:#3fbf8f;--medium:#e7b743;--hard:#ef6b6b;--expert:#b57cf0;
+}
+[data-theme=light]{
+  --bg:#eef3fb;--panel:#ffffff;--panel-border:#d0dcec;--btn:#ffffff;--btn2:#e2eaf6;
+  --ink:#12263f;--muted:#5a7190;--accent:#3d6fe0;--accent2:#2f6fd0;--border:#c5d3e6;
+  --done:#2f9a83;--input:#ffffff;--overlay:#0b1a3388;--modal:#ffffff;--modal-border:#c5d3e6;
+  --toast:#12263f;--pill:#dfeafb;--pill-ink:#2a5aa8;--ok-ink:#1d8a6c;
+  --sq-light:#f0d9b5;--sq-dark:#b58863;
+  --sq-sel:#f6f669;--sq-hint:#cdd16f;
+  --sq-move-from:#f6f66988;--sq-move-to:#f6f66966;--sq-legal:rgba(0,0,0,0.15);
+  --pc-white:#ffffff;--pc-black:#1a1a2e;
+  --easy:#2f9a83;--medium:#c58f00;--hard:#d94b4b;--expert:#8a4fd0;
+}
+*{box-sizing:border-box}
+html,body{padding:0;margin:0;min-height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--ink)}
+button,input,select{font:inherit}
+button{cursor:pointer;border:0;color:var(--ink);touch-action:manipulation}
+button:disabled{opacity:.36;cursor:default}
+[data-theme=light] button{box-shadow:0 1px 2px #1b3a6a1a}
+.app{max-width:620px;margin:0 auto;min-height:100dvh;min-height:100vh;
+  padding:calc(env(safe-area-inset-top) + 2px) 17px calc(env(safe-area-inset-bottom) + 22px)}
+.screen{display:none}.screen.active{display:block}
+
+/* ── HOME ── */
+.homeTop{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:0}
+.homeTopLeft{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+.langSelect{appearance:none;-webkit-appearance:none;background:var(--btn2);color:var(--ink);
+  border:1px solid var(--border);border-radius:12px;padding:9px 30px 9px 12px;font-size:15px;
+  font-weight:600;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),
+  linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+  background-position:calc(100% - 15px) 52%,calc(100% - 10px) 52%;
+  background-size:5px 5px;background-repeat:no-repeat;max-width:62vw}
+.iconbtn{background:var(--btn2);border-radius:12px;width:42px;height:42px;font-size:20px;
+  display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.homeHero{text-align:center;padding:clamp(4px,2vh,18px) 0 clamp(12px,3vh,24px)}
+.eyebrow{color:var(--accent2);font-weight:700;letter-spacing:.5px;font-size:13px}
+.homeHero h1{font-size:clamp(30px,8.6vw,46px);margin:0 0 2px;line-height:1.1}
+.sub{color:var(--muted);font-size:14px;margin-bottom:0}
+.heroIcon{font-size:clamp(64px,20vw,96px);display:block;text-align:center;
+  margin:12px auto 16px;line-height:1;filter:drop-shadow(0 4px 18px rgba(70,124,244,.5))}
+.homeButtons{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+.bigbtn{display:block;background:var(--btn);width:100%;border-radius:23px;
+  padding:16px 20px;font-size:17px;border:1px solid transparent;text-align:center}
+[data-theme=light] .bigbtn{border-color:var(--border)}
+.bigbtn.primary{background:var(--accent);color:#fff;border-color:transparent;
+  font-size:18px;font-weight:700;padding:18px 20px;
+  box-shadow:0 4px 20px rgba(70,124,244,.35)}
+
+/* ── HOME (Hashi-style) ── */
+.homeHero{padding-top:0}
+.previewFrame{width:min(62vw,300px);aspect-ratio:1/1;margin:14px auto 8px;
+  border-radius:22px;overflow:hidden}
+.previewInner{width:100%;height:100%;border-radius:22px;overflow:hidden;border:2px solid var(--border)}
+.previewSvg{width:100%;height:100%;display:block}
+.bigbtn.soft{background:var(--btn2)}
+.bigbtn.dark{background:var(--btn);border-color:transparent}
+[data-theme=light] .bigbtn.dark{background:#fff;border-color:var(--border)}
+.bigbtn.outlined{border:2px solid var(--border)}
+.homeRow{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.homeRow select.bigbtn{appearance:none;-webkit-appearance:none;text-align:center;text-align-last:center;
+  background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+  background-position:calc(100% - 20px) 52%,calc(100% - 15px) 52%;background-size:5px 5px;background-repeat:no-repeat;
+  padding-right:30px;color:var(--ink)}
+.homeButtons .bigbtn{border-radius:28px}
+
+/* ── TOPBAR ── */
+.topbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 11px;margin:4px 0 16px}
+.back{background:transparent;padding:7px 10px 7px 0;font-size:28px;box-shadow:none!important}
+.topbar h2{font-size:22px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.smallbtn{border-radius:11px;padding:10px;background:var(--btn2);font-size:18px}
+.topbarBtns{width:100%;display:flex;justify-content:flex-end;gap:8px;margin-top:2px}
+
+
+/* ── HOW-TO DEMO ── */
+
+
+/* ── STATISTICS / PRIVACY ── */
+.linkRow{background:transparent;width:100%;text-align:left;box-shadow:none!important}
+.linkRow .chev{color:var(--muted);font-size:24px;line-height:1}
+.tiles3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+.tile{background:var(--panel);border:1px solid var(--panel-border);border-radius:16px;padding:12px 6px;text-align:center}
+.tile b{display:block;font-size:26px;line-height:1.1}
+.tile span{display:block;font-size:12px;color:var(--muted);margin-top:4px}
+.tile svg{width:22px;height:22px;display:block;margin:0 auto 4px}
+.kv b{color:var(--accent2)}
+.thBar{height:5px;border-radius:3px;background:var(--btn2);margin-top:6px;overflow:hidden}
+.thBar i{display:block;height:100%;background:var(--accent);border-radius:3px}
+.privUpdated{color:var(--muted);font-size:13px;margin:-6px 0 12px}
+.privSec{background:var(--panel);border:1px solid var(--panel-border);border-radius:16px;padding:14px 16px;margin-bottom:10px}
+.privSec h3{margin:0 0 6px;font-size:16px}
+.privSec p{margin:0;color:var(--muted);line-height:1.5;font-size:14px;overflow-wrap:anywhere}
+
+/* ── CATEGORIES ── */
+
+/* ── LEVELS ── */
+.stats{text-align:center;color:var(--accent2);margin:0 0 16px;font-size:17px}
+[data-theme=light] .level{border:1px solid var(--border)}
+
+/* board & pieces picker */
+.bpWrap{display:flex;flex-direction:column;gap:12px}
+.bpRight{order:-1;position:sticky;top:6px;z-index:5;display:flex;justify-content:center;
+  background:var(--panel);padding:6px 0;border-radius:14px}
+.settPreview{width:128px;height:128px;display:block;border-radius:10px;border:2px solid var(--border);background:var(--panel)}
+.subLabel{font-size:12px;color:var(--muted);margin:2px 0 6px;text-transform:uppercase;letter-spacing:.4px}
+.boardSwatches{display:grid;grid-template-columns:repeat(6,1fr);gap:7px;padding:2px 0 10px}
+.boardSwatch{aspect-ratio:1/1;width:100%;height:auto;border-radius:9px;display:block;padding:0;cursor:pointer;
+  border:3px solid transparent;transition:border-color .15s}
+.boardSwatch.active{border-color:var(--accent)}
+.btnIco{width:26px;height:26px;vertical-align:middle;margin-right:8px;border-radius:6px}
+svg.btnIco{width:24px;height:24px;border-radius:0}
+#promoOverlay{position:fixed;inset:0;background:var(--overlay);display:none;align-items:center;justify-content:center;z-index:60}
+#promoOverlay.show{display:flex}
+.promoBox{background:var(--modal);color:var(--ink);border-radius:18px;padding:16px;width:min(92vw,360px);text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+.promoBox h3{margin:0 0 12px;font-size:18px}
+#promoChoices{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.promoBtn{padding:0;border:2px solid var(--border);border-radius:12px;background:transparent;cursor:pointer;aspect-ratio:1/1}
+.promoBtn:active{transform:scale(.96)}
+.promoBtn svg{width:100%;height:100%;display:block}
+.pieceTiles{display:grid;grid-template-columns:repeat(9,1fr);gap:6px;padding:2px 0}
+.pieceTile{aspect-ratio:1/1;width:100%;border-radius:8px;padding:0;overflow:hidden;cursor:pointer;
+  border:3px solid transparent;transition:border-color .15s;display:block;background:transparent}
+.pieceTile.active{border-color:var(--accent)}
+.pieceTile svg{width:100%;height:100%;display:block}
+@media(min-width:520px){
+  .bpWrap{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:start}
+  .bpRight{order:0;align-items:flex-start;padding:0;background:transparent}
+  .settPreview{width:150px;height:150px}
+}
+/* segmented buttons (theme) */
+.seg{display:flex;gap:8px}
+.seg button{flex:1;padding:11px 6px;border-radius:12px;background:var(--btn2);font-size:15px;font-weight:600;
+  border:2px solid transparent}
+.seg button.active{border-color:var(--accent);background:var(--btn)}
+/* custom */
+
+/* difficulty */
+
+/* ── PLAY ── */
+.playTop{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:4px 0 10px}
+.note{text-align:center;color:var(--muted);font-size:14px;min-height:38px;
+  display:flex;align-items:center;justify-content:center;padding:0 10px;line-height:1.3}
+
+/* ── SETTINGS ── */
+.settGroup{background:var(--panel);border:1px solid var(--panel-border);
+  border-radius:16px;padding:4px 0;margin-bottom:14px;overflow:hidden}
+.settRow{display:flex;align-items:center;padding:14px 16px;gap:12px;
+  border-bottom:1px solid var(--panel-border)}
+.settRow:last-child{border-bottom:none}
+.settRow .label{flex:1;font-size:16px;font-weight:500}
+.settRow .hint{font-size:12px;color:var(--muted);margin-top:2px}
+.settRowBlock{flex-direction:column;align-items:stretch;gap:8px}
+.settRowBlock .label{font-size:16px;font-weight:500}
+.toggle{width:50px;height:28px;border-radius:14px;background:var(--border);
+  position:relative;transition:background .2s;flex-shrink:0;border:none;padding:0}
+.toggle.on{background:var(--accent)}
+.toggle:after{content:'';position:absolute;left:3px;top:3px;width:22px;height:22px;
+  border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px #0003}
+.toggle.on:after{left:25px}
+.settSel{background:var(--btn2);border:1px solid var(--border);
+  border-radius:10px;color:var(--ink);padding:8px 12px;font-size:15px}
+
+/* Board theme swatches */
+/* Chip row (piece style / coord mode) */
+.chipRow{display:flex;gap:8px;flex-wrap:wrap;padding:2px 0}
+.chip{padding:7px 14px;border-radius:20px;background:var(--btn2);
+  font-size:14px;cursor:pointer;border:2px solid transparent;
+  transition:border-color .15s,background .15s;color:var(--ink)}
+.chip.active{border-color:var(--accent);background:var(--btn);font-weight:600}
+
+.tacticsBtn{display:block;width:100%;background:var(--accent);color:#fff;
+  border-radius:14px;padding:15px;font-size:16px;font-weight:700;
+  margin-bottom:12px;text-align:center}
+
+/* ── ABOUT ── */
+.aboutSection{background:var(--panel);border:1px solid var(--panel-border);
+  border-radius:16px;padding:16px;margin-bottom:14px}
+.aboutSection h3{margin:0 0 8px;font-size:16px}
+.aboutSection p{margin:0;font-size:14px;color:var(--muted);line-height:1.5}
+.aboutSection a{color:var(--accent2)}
+
+/* ── MODAL ── */
+.overlay{display:none;position:fixed;inset:0;background:var(--overlay);z-index:100;
+  align-items:flex-end;justify-content:center}
+.modal{background:var(--modal);border:1px solid var(--modal-border);
+  border-radius:24px 24px 0 0;width:100%;max-width:620px;
+  padding:24px 20px calc(env(safe-area-inset-bottom) + 24px);max-height:80vh;overflow-y:auto}
+.modal h3{margin:0 0 16px;font-size:20px}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:calc(env(safe-area-inset-bottom) + 80px);left:50%;
+  transform:translateX(-50%);background:var(--toast);color:var(--ink);
+  border-radius:12px;padding:10px 18px;font-size:14px;z-index:200;
+  opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1}
+
+
+/* ── v4: larger header/action buttons, page jumps, flip board ── */
+.smallbtn,.flipBtn{width:50px;height:50px;min-width:50px;padding:0;border-radius:14px;display:inline-flex;align-items:center;justify-content:center;font-size:24px;flex:none}
+.smallbtn svg{width:26px;height:26px}
+.back{font-size:40px;line-height:1;min-width:46px;height:50px;display:inline-flex;align-items:center;justify-content:flex-start;padding:0 8px 4px 2px}
+.topbar,.playTop{gap:10px}
+.pagesMid small{display:block;white-space:nowrap;font-size:11px}
+.homeHero{padding-bottom:2px!important}
+.previewFrame{margin-top:4px!important}
+#settingsScreen>.bigbtn{margin-top:10px;position:relative}
+#settingsScreen>.tacticsBtn{margin-bottom:0;text-decoration:none}
+a.tacticsLink{text-decoration:none;display:block;text-align:center;box-sizing:border-box}
+a.tacticsBtn,a.tacticsBtn:visited,a.tacticsBtn:hover,a.tacticsBtn:active{color:#fff;text-decoration:none}
+.homeButtons .tacticsBtn.homeTactics{margin:0;border-radius:28px;padding:16px 20px;font-size:17px}
+
+
+/* ══════════ Chess vs Bots (v1) ══════════ */
+.homeRating{text-align:center;margin:8px 0 14px;font-size:17px;color:var(--accent2);font-weight:600}
+.homeRating b{font-size:26px;color:var(--ink)}
+.homeRating small{display:block;color:var(--muted);font-size:12px;font-weight:500;margin-top:2px}
+
+/* bot list */
+.botsNote{color:var(--muted);font-size:13px;line-height:1.4;margin:-6px 2px 12px}
+.botList{display:flex;flex-direction:column;gap:10px}
+.starsNote{margin-top:-4px;color:var(--accent2)}
+.grp{background:var(--panel);border:1px solid var(--panel-border);border-radius:16px;overflow:hidden}
+.grpHead{display:flex;align-items:center;gap:12px;width:100%;padding:11px 14px;background:none;border:0;color:var(--text);font:inherit;cursor:pointer;text-align:left}
+.grpHead .botAvatar{width:46px;height:46px;flex:none;display:block}
+.grpHead .gTxt{flex:1;min-width:0}
+.grpHead .gName{font-size:18px;font-weight:800}
+.grpHead .gSub{font-size:12.5px;color:var(--muted);margin-top:1px}
+.grpHead .gStars{font-size:13px;font-weight:700;color:#f5b301;font-variant-numeric:tabular-nums;white-space:nowrap}
+.grpHead .chev{font-size:24px;color:var(--muted);transition:transform .15s}
+.grp.open .grpHead .chev{transform:rotate(90deg)}
+.grpBody{display:none;grid-template-columns:repeat(5,1fr);gap:6px;padding:2px 10px 12px}
+.grp.open .grpBody{display:grid}
+.botTile{position:relative;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:0;padding:4px 2px 5px;background:none;border:2px solid transparent;border-radius:12px;color:var(--text);font:inherit;cursor:pointer}
+.botTile:active{opacity:.75}
+.botTile.rec{border-color:var(--accent);background:rgba(108,196,255,.08)}
+.botTile .tAv{position:relative;display:block;width:100%}
+.botTile .botAvatar{width:100%;height:auto;aspect-ratio:1;display:block}
+.botTile .tFlag{position:absolute;right:-2px;bottom:-2px;line-height:0;filter:drop-shadow(0 1px 2px rgba(0,0,0,.45))}
+.botTile .tFlag .flag{width:20px;height:auto}
+.botTile .tName{font-size:11.5px;font-weight:700;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}
+.botTile .tElo{font-size:12px;color:var(--accent2);font-weight:800;font-variant-numeric:tabular-nums}
+.stars{color:#f5b301;letter-spacing:1px;font-size:11px;white-space:nowrap}
+.stars i{font-style:normal;color:var(--muted);opacity:.35}
+.goStars .stars{font-size:26px;letter-spacing:3px}
+.flag{display:inline-block;vertical-align:-2px;border-radius:3px}
+.profChip{display:flex;align-items:center;gap:10px;margin:2px auto 6px;padding:5px 14px 5px 6px;background:var(--panel);border:1px solid var(--panel-border);border-radius:30px;color:var(--text);font:inherit;cursor:pointer;max-width:100%}
+.profChip .botAvatar{width:36px;height:36px;border-radius:50%;object-fit:cover;flex:none;display:block}
+.profChip .pcName{font-weight:700;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.profChip .pcEdit{color:var(--muted);font-size:13px;white-space:nowrap}
+.profChip.big{display:flex;width:100%;margin:0 0 12px;padding:10px 16px 10px 10px;border-radius:18px}
+.profChip.big .botAvatar{width:52px;height:52px}
+.profChip.big .pcName{font-size:18px;flex:1;text-align:left}
+.profBody{display:flex;flex-direction:column;gap:10px;padding-bottom:24px}
+.profPlayers{display:flex;align-items:flex-start;gap:6px;overflow-x:auto;overflow-y:hidden;position:relative;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;padding:8px 2px 6px;scrollbar-width:none;overscroll-behavior-x:contain}
+.profPlayers::-webkit-scrollbar{display:none}
+.profPlayers>:first-child{margin-left:auto}.profPlayers>:last-child{margin-right:auto}
+.plCard{flex:none;width:104px;scroll-snap-align:center;display:flex;flex-direction:column;align-items:center;gap:5px;background:none;border:0;padding:6px 4px 8px;color:var(--text);font:inherit;cursor:pointer;border-radius:16px;transition:width .2s}
+.plCard .botAvatar{width:76px;height:76px;border-radius:50%;object-fit:cover;display:block;box-shadow:0 0 0 2px var(--panel-border);opacity:.7;transition:all .2s}
+.plCard.sel{width:136px}
+.plCard.sel .botAvatar{width:112px;height:112px;opacity:1;box-shadow:0 0 0 3px var(--accent)}
+.plName{font-weight:700;font-size:14px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plSub{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:4px;min-height:16px}
+.plAdd .plPlus{width:76px;height:76px;border-radius:50%;border:2px dashed var(--muted);color:var(--muted);display:flex;align-items:center;justify-content:center;font-size:36px;line-height:1;font-weight:300}
+.plAdd .plName{color:var(--muted)}
+.botAvatar.blank{fill:none;stroke:var(--muted);stroke-width:3.5}
+.botAvatar.blank .bg{fill:var(--btn2);stroke:none}
+.bigbtn.danger{color:#ef5b5b}
+.profBtns{display:flex;flex-direction:column;gap:8px}
+.profLabel{font-size:13px;font-weight:700;color:var(--muted);margin-top:6px}
+.presetGrid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+.presetBtn{padding:2px;border:2px solid transparent;border-radius:50%;background:none;cursor:pointer;line-height:0}
+.presetBtn.sel{border-color:var(--accent)}
+.presetBtn .botAvatar{width:100%;height:auto;aspect-ratio:1;display:block}
+.profInput{width:100%;box-sizing:border-box;padding:12px 14px;font:inherit;font-size:16px;color:var(--text);background:var(--panel);border:1px solid var(--panel-border);border-radius:12px}
+.profCountryRow{display:flex;align-items:center;gap:10px}
+.profFlag{min-width:33px;line-height:0}
+.profHint{font-size:12.5px;color:var(--muted);line-height:1.4}
+.pAvatar .botAvatar.photo,.setupAvatar .botAvatar.photo{border-radius:50%;object-fit:cover}
+.eloBar{height:4px;border-radius:2px;background:var(--btn2);margin-top:6px;overflow:hidden}
+.eloBar i{display:block;height:100%;border-radius:2px;background:linear-gradient(90deg,var(--easy),var(--medium),var(--hard),var(--expert))}
+
+/* setup */
+.setupCard{display:flex;flex-direction:column;align-items:center;text-align:center;background:var(--panel);
+  border:1px solid var(--panel-border);border-radius:20px;padding:18px 16px;margin-bottom:16px}
+.setupAvatar .botAvatar{width:112px;height:112px;display:block}
+.setupName{font-size:28px;font-weight:800;margin-top:8px}
+.setupMeta{font-size:16px;color:var(--accent2);font-weight:700;margin-top:2px}
+.setupRecord{font-size:13px;color:var(--muted);margin-top:8px}
+.setupBio{position:relative;margin-top:14px;background:var(--btn2);border-radius:14px;padding:10px 13px;text-align:left;font-size:14px;line-height:1.5;color:var(--ink);width:100%;box-sizing:border-box}
+.setupBio::before{content:"";position:absolute;top:-7px;left:50%;margin-left:-7px;border:7px solid transparent;border-top:0;border-bottom-color:var(--btn2)}
+.setupBio p{margin:0}
+.setupBio .bioLine{display:flex;align-items:center;gap:5px;flex-wrap:wrap;font-size:12.5px;color:var(--accent2);margin-bottom:5px}
+.setupBio .bioLine .flag{display:inline-block;vertical-align:middle}
+.setupAvatar.legend .botAvatar{filter:drop-shadow(0 0 10px rgba(217,177,59,.55))}
+.colorPick{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+.colorPick button{background:var(--btn2);border:3px solid transparent;border-radius:16px;padding:10px 4px 8px;
+  display:flex;flex-direction:column;align-items:center;gap:4px;font-size:14px;font-weight:600}
+.colorPick button.active{border-color:var(--accent);background:var(--btn)}
+.colorPick svg{width:54px;height:54px;display:block;border-radius:10px}
+.setupOdds{text-align:center;color:var(--muted);font-size:14px;min-height:22px;margin:4px 0 14px}
+.setupOdds b{color:var(--ink)}
+
+/* play */
+.playTopMid{flex:1;min-width:0}
+.playTitle{font-size:17px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.playNum{font-size:12px;color:var(--muted);line-height:1.4}
+.pBar{display:flex;align-items:center;gap:10px;max-width:520px;margin:4px auto;min-height:44px}
+.pAvatar{width:38px;height:38px;flex:none;border-radius:50%;overflow:hidden;background:var(--btn2);display:flex;align-items:center;justify-content:center;font-size:20px}
+.pAvatar .botAvatar{width:38px;height:38px;display:block}
+.pInfo{flex:1;min-width:0}
+.pName{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pName small{color:var(--muted);font-weight:600;font-size:13px;margin-left:4px}
+.pCap{height:18px;display:flex;align-items:center;gap:0;font-size:12px;color:var(--muted)}
+.pCap svg{width:17px;height:17px;display:block;margin-right:-5px}
+.pCap b{margin-left:9px;font-weight:700}
+.pThink{display:none;gap:4px;align-items:center;padding-right:6px}
+.pThink.on{display:flex}
+.pThink i{width:8px;height:8px;border-radius:50%;background:var(--accent2);animation:pth 1s infinite ease-in-out}
+.pThink i:nth-child(2){animation-delay:.18s}.pThink i:nth-child(3){animation-delay:.36s}
+@keyframes pth{0%,80%,100%{opacity:.25;transform:scale(.8)}40%{opacity:1;transform:scale(1.15)}}
+.boardOuter{max-width:520px;margin:4px auto}
+.boardSvg{width:100%;aspect-ratio:1/1;height:auto;display:block;touch-action:none;user-select:none;-webkit-user-select:none;border-radius:6px;overflow:hidden}
+.note{min-height:34px;font-size:15px}
+.note.warn{color:var(--medium);font-weight:700}
+.moveStrip{max-width:520px;margin:2px auto 6px;overflow-x:auto;white-space:nowrap;font-size:13px;color:var(--muted);padding:2px 2px 6px;min-height:28px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.moveStrip::-webkit-scrollbar{display:none}
+.moveStrip span{display:inline-block;padding:2px 5px;border-radius:6px;font-variant-numeric:tabular-nums}
+.moveStrip span.n{color:var(--muted);opacity:.7;padding-right:1px}
+.moveStrip span.cur{background:var(--btn2);color:var(--ink);font-weight:700}
+.gameControls{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;max-width:520px;margin:4px auto 0}
+.gameControls button{background:var(--btn2);border-radius:14px;padding:9px 2px 7px;display:flex;flex-direction:column;align-items:center;gap:1px}
+.gameControls .ci{font-size:22px;line-height:1.2}
+.gameControls .cl{font-size:12px;font-weight:600}
+.gameControls button.on{background:var(--accent);color:#fff}
+
+/* modals centred */
+.overlay.center{align-items:center;padding:16px}
+.gameCard{border-radius:24px;max-width:380px;text-align:center;padding:22px 18px 18px;max-height:92vh}
+.gameCard h3{margin:0 0 4px;font-size:24px}
+.goIcon{font-size:52px;line-height:1.1;margin-bottom:2px}
+.goIcon .botAvatar{width:76px;height:76px}
+.goReason{color:var(--muted);font-size:15px;line-height:1.4;margin-bottom:8px}
+.goRating{font-size:16px;font-weight:700;color:var(--accent2);min-height:22px;margin-bottom:12px}
+.goRating .up{color:var(--easy)}.goRating .down{color:var(--hard)}
+.goBtns{display:flex;flex-direction:column;gap:8px}
+.goBtns .bigbtn{padding:13px 16px;font-size:16px}
+
+/* review */
+.revProg{text-align:center;padding:40px 6px}
+.revProgText{color:var(--muted);margin-bottom:12px;font-size:15px}
+.revHead{display:flex;align-items:center;justify-content:center;gap:10px;font-size:15px;color:var(--muted);margin:0 0 10px;text-align:center}
+.revHead .botAvatar{width:30px;height:30px}
+.revTiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.revTiles .tile b{font-size:30px}
+.revMoveLabel{text-align:center;min-height:42px;margin:6px 0 2px;font-size:15px;line-height:1.3;padding:0 6px}
+.revMoveLabel .tag{display:inline-block;border-radius:8px;padding:1px 8px;font-weight:700;font-size:13px;color:#fff;margin-left:6px}
+.revNav{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;max-width:520px;margin:4px auto 10px}
+.revNav button{background:var(--btn2);border-radius:12px;height:46px;font-size:18px}
+.evalGraph{display:block;width:100%;max-width:520px;height:80px;margin:0 auto 12px;background:var(--panel);border:1px solid var(--panel-border);border-radius:12px;touch-action:none}
+.cntRow{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;margin-top:8px}
+.cntRow div{text-align:center;background:var(--btn2);border-radius:10px;padding:7px 2px 6px}
+.cntRow b{display:block;font-size:19px;line-height:1.1}
+.cntRow span{display:block;font-size:10.5px;color:var(--muted);margin-top:2px;overflow-wrap:anywhere}
+.revKey{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.keyCard{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--panel-border);border-radius:14px;padding:11px 13px;text-align:left;width:100%}
+.keyCard .kIco{font-size:22px;flex:none;width:30px;text-align:center}
+.keyCard .kTxt{flex:1;font-size:14px;line-height:1.3}
+.keyCard .kTxt b{display:block;font-size:15px}
+.keyCard .kTxt span{color:var(--muted)}
+.keyCard .chev{color:var(--muted);font-size:22px}
+.revMoves{display:flex;flex-wrap:wrap;gap:4px 2px;margin:0 0 14px;font-size:14px;font-variant-numeric:tabular-nums}
+.revMoves .mn{color:var(--muted);padding:5px 2px 5px 6px;opacity:.75}
+.revMoves button{background:transparent;padding:5px 7px;border-radius:8px;font-size:14px;display:inline-flex;align-items:center;gap:4px}
+.revMoves button.cur{background:var(--accent);color:#fff}
+.revMoves button i{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
+.revBtns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.revBtns .bigbtn{padding:14px 8px;font-size:16px}
+:root{--q-best:#3fbf8f;--q-exc:#5ccfc4;--q-good:#7bb7e8;--q-inacc:#e7b743;--q-mistake:#f08a3c;--q-blunder:#ef5b5b;--q-brill:#18c2d6}
+[data-theme=light]{--q-best:#2f9a83;--q-exc:#2a9d9a;--q-good:#4a8fd0;--q-inacc:#c58f00;--q-mistake:#d9701c;--q-blunder:#d94b4b;--q-brill:#0e9db0}
+
+/* stats */
+.stCard{background:var(--panel);border:1px solid var(--panel-border);border-radius:16px;padding:16px;margin-bottom:12px}
+.stCard h3{margin:0 0 10px;font-size:14px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.stCard h3{margin:0 0 10px;font-size:14px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.eloBig{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.eloBig b{font-size:44px;line-height:1;color:var(--accent2)}
+.eloBig b{font-size:44px;line-height:1;color:var(--accent2)}
+.eloBig span{font-size:17px;font-weight:600}
+.stNote{color:var(--muted);font-size:13px;line-height:1.45;margin-top:8px}
+.spark{display:block;width:100%;height:56px;margin-top:10px}
+.spark{display:block;width:100%;height:56px;margin-top:10px}
+.tiles3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+.kv{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--panel-border);font-size:15px}
+.kv:last-child{border-bottom:0}
+.kv:last-child{border-bottom:0}
+.stBtns{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+.recRow{display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px solid var(--panel-border);width:100%;background:transparent;text-align:left}
+.recRow:last-child{border-bottom:0}
+.recRow .botAvatar{width:36px;height:36px;flex:none}
+.recRow .rInfo{flex:1;min-width:0;font-size:14px}
+.recRow .rInfo small{display:block;color:var(--muted);font-size:12px}
+.recRow .rRes{font-weight:800;font-size:14px;min-width:26px;text-align:center}
+.recRow .rRes.w{color:var(--easy)}.recRow .rRes.l{color:var(--hard)}.recRow .rRes.d{color:var(--medium)}
+.recRow .rDelta{font-size:13px;font-variant-numeric:tabular-nums;min-width:34px;text-align:right;color:var(--muted)}
+.recRow .chev{color:var(--muted);font-size:20px}
+.tiles4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.tiles4 .tile{padding:10px 2px}.tiles4 .tile b{font-size:22px}
+.tiles4 .tile.w b{color:var(--easy)}.tiles4 .tile.l b{color:var(--hard)}.tiles4 .tile.d b{color:var(--medium)}
+.lvlTag{display:inline-block;background:var(--pill);color:var(--pill-ink);border-radius:10px;padding:3px 10px;font-size:13px;font-weight:700}
+@media(max-width:390px){.gameControls .cl{font-size:11px}.botTile .tName{font-size:10.5px}.grpBody{gap:3px;padding:2px 6px 10px}}
+
+/* ── nav buttons on every page (home, settings, full view) ── */
+.navBtn{color:var(--ink)}
+.navBtn svg{width:25px;height:25px;display:block}
+.topbar .topbarBtns{margin-top:0}
+.topbarBtns .smallbtn,.playTop .smallbtn{width:46px;height:46px;min-width:46px;border-radius:13px}
+.playTop .back{min-width:40px}
+.homeHero{position:relative}
+.homeHero .homeFull{position:absolute;top:0;right:0;width:40px;height:40px;min-width:40px}
+.homeHero h1{padding:0 44px}
+body.fullview .navBtn[data-nav=full]{background:var(--accent);color:#fff}
+@media(max-width:420px){.playTop .smallbtn{width:42px;height:42px;min-width:42px}.playTop{gap:6px}}
+
+
+/* ── move table (play screen, wide layouts), navigation buttons, evaluation bar (review) ── */
+.mtNav{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:0 0 8px}
+.mtNav button,.revNav button{display:flex;align-items:center;justify-content:center;color:var(--ink)}
+.mtNav button{background:var(--btn2);border-radius:12px;height:44px}
+.mtNav button:disabled{opacity:.35}
+.mtNav svg,.revNav svg{width:22px;height:22px;display:block}
+.mtHead{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 6px}
+.moveTableWrap{display:none}
+.moveTable{display:grid;grid-template-columns:46px 1fr 1fr;align-content:start;gap:0;background:var(--panel);border:1px solid var(--panel-border);border-radius:12px;overflow-y:auto;overflow-x:hidden;position:relative;font-variant-numeric:tabular-nums;font-size:15px;margin:0 0 14px;scrollbar-width:thin}
+.moveTable{margin:0}
+.moveTable .mn{padding:8px 6px 8px 10px;color:var(--muted);opacity:1;font-size:14px;background:var(--btn2)}
+.moveTable button{background:transparent;text-align:left;padding:8px 10px;border-radius:0;font-size:15px;font-weight:600;color:var(--ink);gap:6px}
+.moveTable .z{background-color:rgba(127,127,127,.09)}
+.moveTable .mn.z{background-color:var(--btn2)}
+.moveTable button.cur{background:var(--accent);color:#fff}
+.revBoardRow{display:flex;align-items:stretch;gap:8px;max-width:520px;margin:4px auto}
+.revBoardRow .boardOuter{flex:1;min-width:0;max-width:none;margin:0}
+.evalBar{position:relative;width:22px;flex:none;border-radius:6px;overflow:hidden;background:#2b2a27;border:1px solid var(--panel-border)}
+.ebWhite{position:absolute;left:0;right:0;bottom:0;height:50%;background:#f4f4f2;transition:height .25s ease}
+.evalBar.flip .ebWhite{bottom:auto;top:0}
+.ebTxt{position:absolute;left:0;right:0;font-size:10px;line-height:1;font-weight:800;text-align:center;letter-spacing:-.02em}
+.ebTxt.top{top:3px}.ebTxt.bot{bottom:3px}
+.ebTxt.onW{color:#2b2a27}.ebTxt.onB{color:#f4f4f2}
+
+/* ── tablets and large screens: bigger board, wider layout ── */
+@media(min-width:700px){
+  .app{max-width:780px}
+  .boardOuter{max-width:min(100%,max(320px,calc(100vh - 360px)));max-width:min(100%,max(320px,calc(100dvh - 360px)))}
+  .moveStrip,.gameControls{max-width:min(100%,max(320px,calc(100vh - 360px)));max-width:min(100%,max(320px,calc(100dvh - 360px)))}
+  .revBoardRow{max-width:min(100%,max(350px,calc(100vh - 330px)));max-width:min(100%,max(350px,calc(100dvh - 330px)))}
+}
+@media(min-width:980px) and (orientation:landscape){
+  .app{max-width:1180px}
+  .screen:not(#playScreen):not(#reviewScreen){max-width:680px;margin-left:auto;margin-right:auto}
+  #playScreen.active{display:grid;grid-template-columns:min(calc(100vh - 190px),58vw) minmax(280px,1fr);grid-template-columns:min(calc(100dvh - 190px),58vw) minmax(280px,1fr);column-gap:30px;grid-template-rows:auto auto auto auto 1fr auto;align-items:start}
+  #playScreen .playTop{grid-column:2;grid-row:1;margin-top:8px}
+  #playScreen #oppBar{grid-column:1;grid-row:1}
+  #playScreen .boardOuter{grid-column:1;grid-row:2 / span 4;max-width:none;width:100%;margin:0}
+  #playScreen #youBar{grid-column:1;grid-row:6}
+  #playScreen .note{grid-column:2;grid-row:2}
+  #playScreen .moveStrip{display:none}
+  #playScreen .gameControls{grid-column:2;grid-row:3;max-width:none;width:100%}
+  #playScreen .moveTableWrap{display:block;grid-column:2;grid-row:4 / span 2;width:100%;margin-top:6px}
+  #playScreen .moveTable{max-height:max(150px,calc(min(100vh - 190px,58vw) - 280px));max-height:max(150px,calc(min(100dvh - 190px,58vw) - 280px))}
+  /* review: board with the evaluation bar on the left, everything else on the right */
+  #reviewScreen{max-width:none}
+  #reviewBody{display:grid;grid-template-columns:min(calc(100vh - 150px),56vw) minmax(300px,1fr);grid-template-columns:min(calc(100dvh - 150px),56vw) minmax(300px,1fr);column-gap:30px;align-items:start}
+  #reviewBody>*{grid-column:2}
+  #reviewBody>.revBoardRow{grid-column:1;grid-row:1 / span 9;position:sticky;top:8px;max-width:none;width:100%;margin:0}
+  #reviewBody .revNav,#reviewBody .evalGraph{max-width:none}
+  #reviewBody .revMoves{display:grid;grid-template-columns:46px 1fr 1fr;align-content:start;gap:0;background:var(--panel);border:1px solid var(--panel-border);border-radius:12px;overflow-y:auto;overflow-x:hidden;position:relative;font-size:15px;margin:0 0 14px;scrollbar-width:thin}
+  #reviewBody .revMoves .mn{padding:8px 6px 8px 10px;color:var(--muted);opacity:1;font-size:14px;background:var(--btn2)}
+  #reviewBody .revMoves button{background:transparent;text-align:left;padding:8px 10px;border-radius:0;font-size:15px;font-weight:600;color:var(--ink);gap:6px}
+  #reviewBody .revMoves .z{background-color:rgba(127,127,127,.09)}
+  #reviewBody .revMoves .mn.z{background-color:var(--btn2)}
+  #reviewBody .revMoves button.cur{background:var(--accent);color:#fff}
+  #reviewBody .revMoves{max-height:max(180px,calc(100vh - 560px));max-height:max(180px,calc(100dvh - 560px))}
+}
+body.fullview .app{max-width:none}
+body.fullview #playScreen .boardOuter,body.fullview #reviewScreen .revBoardRow{max-width:min(100%,max(320px,calc(100vh - 300px)));max-width:min(100%,max(320px,calc(100dvh - 300px)))}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- HOME -->
+<div class="screen active" id="homeScreen">
+  <div class="homeHero">
+    <h1>Chess vs Bots</h1>
+    <div class="sub" data-i18n="tagline">40 bots, from beginner to master</div>
+  </div>
+  <div class="previewFrame"><div class="previewInner">
+    <svg class="previewSvg" id="homePreview" viewBox="0 0 8 8" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div></div>
+  <button class="profChip" id="homeProfile" type="button"></button>
+  <div class="homeRating" id="homeRating"></div>
+  <div class="homeButtons">
+    <button class="bigbtn primary" id="continueBtn" style="display:none"></button>
+    <button class="bigbtn primary" id="playBtn" data-i18n="playBots">♞ Play vs Bots</button>
+    <button class="bigbtn soft" id="statsBtn"><svg class="btnIco" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="14" width="3.6" height="6.5" rx=".8" fill="#fff"/><rect x="9.2" y="10.5" width="3.6" height="10" rx=".8" fill="#fff"/><rect x="14.9" y="13" width="3.6" height="7.5" rx=".8" fill="#fff"/><path d="M4.5 9 9.5 5.5 14 8l5-4" stroke="#6cc4ff" stroke-width="2"/></svg><span data-i18n="statsTitle">Profile &amp; statistics</span></button>
+    <div class="homeRow">
+      <select class="bigbtn dark" id="langSel" aria-label="Language"></select>
+      <button class="bigbtn dark" id="settBtn"><span class="btnGear" aria-hidden="true">⚙️</span> <span data-i18n="settings">Settings</span></button>
+    </div>
+    <button class="bigbtn dark" id="aboutHomeBtn" data-i18n="about">About</button>
+    <a class="tacticsBtn tacticsLink homeTactics" id="homeTactics" target="_blank" rel="noopener" href="#"><span aria-hidden="true">🧩</span> <span data-i18n="tacticsBtn">Chess puzzles — Chess Tactics Gym</span></a>
+  </div>
+</div>
+
+<!-- CHOOSE A BOT -->
+<div class="screen" id="botsScreen">
+  <div class="topbar">
+    <button class="back" id="botsBack">‹</button>
+    <h2 data-i18n="chooseBot">Choose your opponent</h2>
+  </div>
+  <div class="botsNote" id="botsNote"></div>
+  <div class="botsNote starsNote" id="starsNote"></div>
+  <div class="botList" id="botList"></div>
+</div>
+
+<!-- MY PROFILE -->
+<div class="screen" id="profileScreen">
+  <div class="topbar">
+    <button class="back" id="profileBack">‹</button>
+    <h2 data-i18n="profileTitle">My profile</h2>
+  </div>
+  <div class="profBody">
+    <div class="profPlayers" id="profPlayers" role="listbox" data-title-i18n="playersLabel" aria-label="Players"></div>
+    <div class="profHint" data-i18n="playersHint">Up to 5 players can share this device. Each has their own rating, statistics and game in progress.</div>
+    <div class="profBtns">
+      <button class="bigbtn soft" id="profCamBtn" type="button">📷 <span data-i18n="takePhoto">Take a photo</span></button>
+      <button class="bigbtn soft" id="profUpBtn" type="button">🖼️ <span data-i18n="uploadPhoto">Upload a picture</span></button>
+    </div>
+    <input type="file" id="profCam" accept="image/*" capture="user" hidden>
+    <input type="file" id="profFile" accept="image/*" hidden>
+    <div class="profLabel" data-i18n="pickAvatar">Or choose a picture</div>
+    <div class="presetGrid" id="presetGrid"></div>
+    <label class="profLabel" for="profName" data-i18n="profileName">Name</label>
+    <input class="profInput" id="profName" maxlength="20" autocomplete="off" spellcheck="false">
+    <label class="profLabel" for="profCountry" data-i18n="profileCountry">Country</label>
+    <div class="profCountryRow"><span class="profFlag" id="profFlag"></span><select class="profInput" id="profCountry"></select></div>
+    <div class="profHint" data-i18n="profileHint">Your name, country and picture stay on your device.</div>
+    <button class="bigbtn soft danger" id="profDelBtn" type="button" data-i18n="deletePlayer" style="display:none">Remove player</button>
+  </div>
+</div>
+
+<!-- NEW GAME SETUP -->
+<div class="screen" id="setupScreen">
+  <div class="topbar">
+    <button class="back" id="setupBack">‹</button>
+    <h2 data-i18n="newGame">New game</h2>
+  </div>
+  <div class="setupCard">
+    <div class="setupAvatar" id="setupAvatar"></div>
+    <div class="setupName" id="setupName"></div>
+    <div class="setupMeta" id="setupMeta"></div>
+    <div class="setupBio" id="setupBio"></div>
+    <div class="setupRecord" id="setupRecord"></div>
+  </div>
+  <div class="subLabel" data-i18n="playAs">Play as</div>
+  <div class="colorPick" id="colorPick">
+    <button data-c="w" id="colW"></button>
+    <button data-c="r" id="colR"></button>
+    <button data-c="b" id="colB"></button>
+  </div>
+  <div class="setupOdds" id="setupOdds"></div>
+  <button class="bigbtn primary" id="startGameBtn" data-i18n="startGame">Start game</button>
+</div>
+
+<!-- PLAY -->
+<div class="screen" id="playScreen">
+  <div class="playTop">
+    <button class="back" id="playBack">‹</button>
+    <div class="playTopMid">
+      <div class="playTitle" id="playTitle"></div>
+      <div class="playNum" id="playSub"></div>
+    </div>
+  </div>
+  <div class="pBar" id="oppBar">
+    <div class="pAvatar" id="oppAvatar"></div>
+    <div class="pInfo"><div class="pName" id="oppName"></div><div class="pCap" id="oppCap"></div></div>
+    <div class="pThink" id="oppThink" aria-hidden="true"><i></i><i></i><i></i></div>
+  </div>
+  <div class="boardOuter" id="boardOuter">
+    <svg class="boardSvg" id="boardSvg" viewBox="0 0 8 8" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+  <div class="pBar" id="youBar">
+    <div class="pAvatar you" id="youAvatar"></div>
+    <div class="pInfo"><div class="pName" id="youName"></div><div class="pCap" id="youCap"></div></div>
+  </div>
+  <div class="note" id="playNote"></div>
+  <div class="moveStrip" id="moveStrip"></div>
+  <div class="moveTableWrap" id="moveTableWrap">
+    <div class="mtHead" data-i18n="movesTitle">Moves</div>
+    <div class="mtNav">
+      <button id="mvFirst" data-nav-ico="first" data-title-i18n="navFirst" aria-label="First move"></button>
+      <button id="mvPrev" data-nav-ico="prev" data-title-i18n="navPrev" aria-label="Previous move"></button>
+      <button id="mvNext" data-nav-ico="next" data-title-i18n="navNext" aria-label="Next move"></button>
+      <button id="mvLast" data-nav-ico="last" data-title-i18n="navLast" aria-label="Latest move"></button>
+    </div>
+    <div class="moveTable" id="moveTable"></div>
+  </div>
+  <div class="gameControls">
+    <button id="undoBtn"><span class="ci">↶</span><span class="cl" data-i18n="undo">Undo</span></button>
+    <button id="hintBtn"><span class="ci">💡</span><span class="cl" data-i18n="hintShort">Hint</span></button>
+    <button id="drawBtn"><span class="ci">½</span><span class="cl" data-i18n="drawShort">Draw</span></button>
+    <button id="resignBtn"><span class="ci">⚑</span><span class="cl" data-i18n="resignShort">Resign</span></button>
+    <button id="flipBtn"><span class="ci">⇅</span><span class="cl" data-i18n="flipShort">Flip</span></button>
+  </div>
+</div>
+
+<!-- REVIEW -->
+<div class="screen" id="reviewScreen">
+  <div class="topbar">
+    <button class="back" id="reviewBack">‹</button>
+    <h2 data-i18n="reviewTitle">Game review</h2>
+  </div>
+  <div id="reviewProgress" class="revProg" style="display:none">
+    <div class="revProgText" id="revProgText"></div>
+    <div class="thBar"><i id="revProgBar" style="width:0"></i></div>
+  </div>
+  <div id="reviewBody" style="display:none">
+    <div class="revHead" id="revHead"></div>
+    <div class="revTiles" id="revTiles"></div>
+    <div class="revBoardRow" id="revBoardRow">
+      <div class="evalBar" id="evalBar" aria-hidden="true"><div class="ebWhite" id="ebWhite"></div><span class="ebTxt" id="ebTxt">0.0</span></div>
+      <div class="boardOuter" id="revBoardOuter"><svg class="boardSvg" id="revBoardSvg" viewBox="0 0 8 8" xmlns="http://www.w3.org/2000/svg"></svg></div>
+    </div>
+    <div class="revMoveLabel" id="revMoveLabel"></div>
+    <div class="revNav">
+      <button id="revFirst" data-nav-ico="first" data-title-i18n="navFirst" aria-label="x"></button><button id="revPrev" data-nav-ico="prev" data-title-i18n="navPrev" aria-label="x"></button>
+      <button id="revNext" data-nav-ico="next" data-title-i18n="navNext" aria-label="x"></button><button id="revLast" data-nav-ico="last" data-title-i18n="navLast" aria-label="x"></button>
+      <button id="revFlip" aria-label="Flip">⇅</button>
+    </div>
+    <svg class="evalGraph" id="evalGraph" viewBox="0 0 300 80" preserveAspectRatio="none"></svg>
+    <div class="revKey" id="revKey"></div>
+    <div class="revMoves" id="revMoves"></div>
+    <div class="revBtns">
+      <button class="bigbtn primary" id="revRematch" data-i18n="rematch">Rematch</button>
+      <button class="bigbtn soft" id="revOther" data-i18n="otherBot">Other opponent</button>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div class="screen" id="settingsScreen">
+  <div class="topbar">
+    <button class="back" id="settBack">‹</button>
+    <h2 data-i18n="settings">Settings</h2>
+  </div>
+  <button class="bigbtn primary" id="settContinue" style="display:none;margin-bottom:14px" data-i18n="continueGame">▶ Back to game</button>
+
+  <div class="settGroup">
+    <div class="settRow settRowBlock">
+      <div class="label" data-i18n="theme">Theme</div>
+      <div class="seg" id="themeSeg">
+        <button data-v="system" data-i18n="themeSystem">System</button>
+        <button data-v="dark" data-i18n="themeDark">Dark</button>
+        <button data-v="light" data-i18n="themeLight">Light</button>
+      </div>
+    </div>
+    <div class="settRow settRowBlock">
+      <div class="label" data-i18n="boardsPieces">Board &amp; Pieces</div>
+      <div class="bpWrap">
+        <div class="bpLeft">
+          <div class="subLabel" data-i18n="boardTheme">Board Theme</div>
+          <div class="boardSwatches" id="boardSwatches"></div>
+          <div class="subLabel" data-i18n="pieceStyle">Piece Style</div>
+          <div class="pieceTiles" id="pieceTiles"></div>
+        </div>
+        <div class="bpRight"><svg class="settPreview" id="settPreview" viewBox="0 0 3 3" xmlns="http://www.w3.org/2000/svg"></svg></div>
+      </div>
+    </div>
+    <div class="settRow settRowBlock">
+      <div class="label" data-i18n="coordMode">Coordinates</div>
+      <div class="chipRow" id="coordChips"></div>
+    </div>
+  </div>
+
+  <div class="settGroup">
+    <div class="settRow"><div class="label" data-i18n="sound">Sound</div><button class="toggle" id="soundToggle"></button></div>
+    <div class="settRow"><div class="label" data-i18n="vibration">Vibration</div><button class="toggle" id="vibToggle"></button></div>
+    <div class="settRow"><div class="label" data-i18n="showLegal">Show legal moves</div><button class="toggle" id="legalToggle"></button></div>
+    <div class="settRow"><div class="label" data-i18n="autoQueen">Always promote to queen</div><button class="toggle" id="autoQueenToggle"></button></div>
+  </div>
+
+  <div class="settGroup" id="privGroup">
+    <button class="settRow linkRow" id="privBtn"><span class="label" data-i18n="privacyPolicy">Privacy Policy</span><span class="chev">›</span></button>
+  </div>
+  <a class="tacticsBtn tacticsLink" id="settTactics" target="_blank" rel="noopener" href="#"><span aria-hidden="true">🧩</span> <span data-i18n="tacticsBtn">Chess puzzles — Chess Tactics Gym</span></a>
+  <button class="bigbtn" id="aboutBtn" data-i18n="about">About</button>
+</div>
+
+<!-- PROFILE / STATISTICS -->
+<div class="screen" id="statsScreen">
+  <div class="topbar">
+    <button class="back" id="statsBack">‹</button>
+    <h2 data-i18n="statsTitle">Profile &amp; statistics</h2>
+  </div>
+  <div id="statsBody"></div>
+</div>
+
+<!-- PRIVACY -->
+<div class="screen" id="privacyScreen">
+  <div class="topbar">
+    <button class="back" id="privBack">‹</button>
+    <h2 data-i18n="privacyPolicy">Privacy Policy</h2>
+  </div>
+  <div class="privUpdated" id="privUpdated"></div>
+  <div id="privBody"></div>
+</div>
+
+<!-- ABOUT -->
+<div class="screen" id="aboutScreen">
+  <div class="topbar">
+    <button class="back" id="aboutBack">‹</button>
+    <h2 data-i18n="about">About</h2>
+  </div>
+  <div class="aboutSection">
+    <h3>♞ Chess vs Bots</h3>
+    <p data-i18n="aboutDesc">Play offline against 40 bot characters.</p>
+  </div>
+  <div class="aboutSection">
+    <h3 data-i18n="howRatingTitle">Your rating</h3>
+    <p data-i18n="howRatingDesc"></p>
+  </div>
+  <div class="aboutSection">
+    <h3 data-i18n="botStrengthTitle">Bot strength</h3>
+    <p data-i18n="botStrengthDesc"></p>
+  </div>
+  <div class="aboutSection">
+    <h3 data-i18n="openSourceTitle">Free software (GPL v3)</h3>
+    <p data-i18n="openSourceDesc"></p>
+    <p style="margin-top:10px"><a id="srcLink" href="#" target="_blank" rel="noopener" data-i18n="sourceCode">Source code on GitHub</a></p>
+    <p style="margin-top:6px"><a href="https://www.gnu.org/licenses/gpl-3.0.html" target="_blank" rel="noopener">GNU GPL v3</a> · <a href="https://stockfishchess.org/" target="_blank" rel="noopener">Stockfish</a> · <a href="https://github.com/nmrugg/stockfish.js" target="_blank" rel="noopener">stockfish.js</a> · <a href="https://github.com/jhlywa/chess.js" target="_blank" rel="noopener">chess.js</a></p>
+  </div>
+  <div class="aboutSection" style="padding-top:0">
+    <button class="settRow linkRow" id="aboutPrivBtn"><span class="label" data-i18n="privacyPolicy">Privacy Policy</span><span class="chev">›</span></button>
+  </div>
+</div>
+
+</div><!-- .app -->
+
+<!-- Overlays -->
+<div id="promoOverlay" role="dialog" aria-modal="true"><div class="promoBox"><h3 id="promoTitle" data-i18n="promoTitle">Promote to</h3><div id="promoChoices"></div></div></div>
+
+<div class="overlay center" id="gameOverlay" role="dialog" aria-modal="true">
+  <div class="modal gameCard">
+    <div class="goIcon" id="goIcon"></div>
+    <h3 id="goTitle"></h3>
+    <div class="goReason" id="goReason"></div>
+    <div class="goRating" id="goRating"></div>
+    <div class="goBtns">
+      <button class="bigbtn primary" id="goReview" data-i18n="reviewGame">Review game</button>
+      <button class="bigbtn soft" id="goRematch" data-i18n="rematch">Rematch</button>
+      <button class="bigbtn soft" id="goOther" data-i18n="otherBot">Other opponent</button>
+      <button class="bigbtn dark" id="goHome" data-i18n="goHome">Main menu</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay center" id="confirmOverlay" role="dialog" aria-modal="true">
+  <div class="modal gameCard">
+    <h3 id="confirmTitle"></h3>
+    <div class="goReason" id="confirmText"></div>
+    <div class="goBtns">
+      <button class="bigbtn primary" id="confirmYes"></button>
+      <button class="bigbtn dark" id="confirmNo" data-i18n="cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="chess.min.js"></script>
+<script src="privacy-config.js"></script>
+<script src="i18n.js"></script>
+<script src="pieces-extra.js"></script>
+<script src="chess-core.js"></script>
+<script src="engine.js"></script>
+<script src="avatars.js"></script>
+<script src="bots.js"></script>
+<script src="native-services.bundle.js"></script>
+<script src="accuracy.js"></script>
+<script src="game.js"></script>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');</script>
+</body>
+</html>

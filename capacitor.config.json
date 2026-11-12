@@ -1,0 +1,18 @@
+{
+  "appId": "com.chessvsbots.app",
+  "appName": "Chess vs Bots",
+  "webDir": "www",
+  "ios": {
+    "minVersion": "16.4",
+    "contentInset": "never"
+  },
+  "server": {
+    "hostname": "localhost"
+  },
+  "plugins": {
+    "SystemBars": {
+      "style": "DARK",
+      "hidden": false
+    }
+  }
+}

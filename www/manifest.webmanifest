@@ -1,0 +1,24 @@
+{
+  "name": "Chess vs Bots",
+  "short_name": "Chess vs Bots",
+  "description": "Play offline chess against 45 bots and chess legends, from beginner to master. Works fully offline.",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1c355d",
+  "theme_color": "#1c355d",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

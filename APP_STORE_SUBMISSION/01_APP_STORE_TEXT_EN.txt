@@ -1,0 +1,47 @@
+Chess vs Bots — App Store listing text
+
+Name (max 30): Chess vs Bots
+Subtitle (max 30): Offline chess vs 45 bots
+Promotional text (max 170):
+Play offline chess against 40 bot characters from around the world and 5 chess legends, from a 250-rated beginner to a 2800-rated master. Undo, hints, game review and a rating that grows as you win. Free, no ads.
+
+Description:
+Chess vs Bots is a complete offline chess game: pick an opponent, pick your colour and play. No internet, no account.
+
+40 BOT CHARACTERS + TOP PLAYERS
+Meet bots with their own names, flags, drawn portraits, short introductions and playing styles — from a gentle 250-rated beginner who blunders pieces to a 2800-rated master. Then take on five drawn chess legends: Morphy, Lasker, Tal, Capablanca and Alekhine, each with a short biography.
+
+MY PROFILE
+Pick your name and country, and choose a picture, take a photo or upload your own.
+
+STARS
+Win to earn up to three stars per bot: three with no hints and no undo.
+
+PLAY YOUR WAY
+• Choose White, Black or Random
+• Undo a move, ask for a hint, offer a draw or resign
+• Your game in progress is saved automatically
+
+LEARN FROM EVERY GAME
+After the game, review your biggest mistakes and the best move you missed, with an accuracy score.
+
+YOUR RATING
+Your player rating starts at 800 and grows with your wins.
+
+MAKE IT YOURS
+• Many board themes and piece sets, coordinates, flip board
+• Dark and light mode, sound and vibration
+• 8 languages: English, Deutsch, Français, Español, Italiano, Português (Brasil), Nederlands, Български
+
+FREE, NO ADS
+The app is completely free: no ads, no purchases, no tracking. Looking for puzzles? A button takes you to our other game, Chess Tactics Gym.
+
+OPEN SOURCE
+Powered by Stockfish, running entirely on your device. Chess vs Bots is free software under the GPL v3; the source code is public (link in the About screen).
+
+Keywords (max 100): chess,bot,computer,stockfish,offline,engine,board game,strategy,analysis,rating,elo
+Category: Games → Board (secondary: Strategy)
+Support URL: <your public support.html>
+Privacy Policy URL: <your public privacy.html>
+Age rating: 4+ (no ads, no purchases, no mature content; the puzzle button opens the App Store / browser)
+Copyright: © 2026 Andon Rangelov

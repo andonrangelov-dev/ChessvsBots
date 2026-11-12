@@ -1,0 +1,6 @@
+/*
+  Cache-Control: no-cache
+/engine/*
+  Cache-Control: public, max-age=86400
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate

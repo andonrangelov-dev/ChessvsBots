@@ -1,0 +1,102 @@
+# Chess vs Bots: two workflows.
+#  chess-testflight  = test build (checks only warn about placeholders).
+#  chess-appstore-production = App Store build; fails while SOURCE_URL / TACTICS_URL / contact e-mail in www/privacy-config.js are placeholders.
+#  The app has no ads, no purchases and no tracking, so no AdMob / StoreKit setup is needed.
+workflows:
+  chess-testflight:
+    name: Chess vs Bots - iOS TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 90
+    integrations:
+      app_store_connect: Codemagic Hashi Bridges
+    environment:
+      xcode: latest
+      cocoapods: default
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.chessvsbots.app
+      vars:
+        BUNDLE_ID: com.chessvsbots.app
+    scripts:
+      - name: Install dependencies, bundle native services and run checks
+        script: |
+          set -e
+          node --version
+          npm ci --no-audit --no-fund
+          npm run native:bundle
+          npm run web:check
+          npm run test:accuracy
+          npm run test:engine
+          npm run native:verify
+          npm run release:verify
+          npm run native:test
+      - name: Create iOS app and package the offline game
+        script: |
+          npm run ios:prepare
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Chess vs Bots" ios/App/App/Info.plist || /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string Chess vs Bots" ios/App/App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.7" ios/App/App/Info.plist || true
+      - name: Apply Apple signing files
+        script: xcode-project use-profiles
+      - name: Update iOS build number
+        script: |
+          cd ios/App
+          agvtool new-version -all "${BUILD_NUMBER:-1}"
+      - name: Build signed IPA
+        script: xcode-project build-ipa --workspace "$CM_BUILD_DIR/ios/App/App.xcworkspace" --scheme "App"
+    artifacts:
+      - '**/*.ipa'
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: false
+        submit_to_app_store: false
+  chess-appstore-production:
+    name: Chess vs Bots - App Store Production IPA
+    instance_type: mac_mini_m2
+    max_build_duration: 90
+    integrations:
+      app_store_connect: Codemagic Hashi Bridges
+    environment:
+      xcode: latest
+      cocoapods: default
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.chessvsbots.app
+      vars:
+        BUNDLE_ID: com.chessvsbots.app
+        CHESS_RELEASE_MODE: production
+    scripts:
+      - name: Install dependencies, bundle native services and run checks
+        script: |
+          set -e
+          node --version
+          npm ci --no-audit --no-fund
+          npm run native:bundle
+          npm run web:check
+          npm run test:accuracy
+          npm run test:engine
+          npm run native:verify
+          npm run release:verify
+          npm run native:test
+      - name: Create iOS app and package the offline game
+        script: |
+          npm run ios:prepare
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Chess vs Bots" ios/App/App/Info.plist || /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string Chess vs Bots" ios/App/App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.7" ios/App/App/Info.plist || true
+      - name: Apply Apple signing files
+        script: xcode-project use-profiles
+      - name: Update iOS build number
+        script: |
+          cd ios/App
+          agvtool new-version -all "${BUILD_NUMBER:-1}"
+      - name: Build signed IPA
+        script: xcode-project build-ipa --workspace "$CM_BUILD_DIR/ios/App/App.xcworkspace" --scheme "App"
+    artifacts:
+      - '**/*.ipa'
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: false
+        submit_to_app_store: false
