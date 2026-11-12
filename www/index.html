@@ -256,6 +256,7 @@ a.tacticsBtn,a.tacticsBtn:visited,a.tacticsBtn:hover,a.tacticsBtn:active{color:#
 .grp.open .grpBody{display:grid}
 .botTile{position:relative;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:0;padding:4px 2px 5px;background:none;border:2px solid transparent;border-radius:12px;color:var(--text);font:inherit;cursor:pointer}
 .botTile:active{opacity:.75}
+.botTile .tRec{display:block;margin-top:2px;font-size:9.5px;line-height:1.1;font-weight:700;color:var(--accent);white-space:nowrap}
 .botTile.rec{border-color:var(--accent);background:rgba(108,196,255,.08)}
 .botTile .tAv{position:relative;display:block;width:100%}
 .botTile .botAvatar{width:100%;height:auto;aspect-ratio:1;display:block}
@@ -267,6 +268,7 @@ a.tacticsBtn,a.tacticsBtn:visited,a.tacticsBtn:hover,a.tacticsBtn:active{color:#
 .stars i{font-style:normal;color:var(--muted);opacity:.35}
 .goStars .stars{font-size:26px;letter-spacing:3px}
 .flag{display:inline-block;vertical-align:-2px;border-radius:3px}
+img.flag{object-fit:cover;box-shadow:0 0 0 1px rgba(0,0,0,.28);background:#fff}
 .profChip{display:flex;align-items:center;gap:10px;margin:2px auto 6px;padding:5px 14px 5px 6px;background:var(--panel);border:1px solid var(--panel-border);border-radius:30px;color:var(--text);font:inherit;cursor:pointer;max-width:100%}
 .profChip .botAvatar{width:36px;height:36px;border-radius:50%;object-fit:cover;flex:none;display:block}
 .profChip .pcName{font-weight:700;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -403,6 +405,19 @@ a.tacticsBtn,a.tacticsBtn:visited,a.tacticsBtn:hover,a.tacticsBtn:active{color:#
 [data-theme=light]{--q-best:#2f9a83;--q-exc:#2a9d9a;--q-good:#4a8fd0;--q-inacc:#c58f00;--q-mistake:#d9701c;--q-blunder:#d94b4b;--q-brill:#0e9db0}
 
 /* stats */
+/* statistics: period dropdown, opponents, import */
+.perWrap{position:relative;margin:0 0 12px}
+.perBtn{display:flex;align-items:center;gap:10px;width:100%;padding:13px 14px;border-radius:14px;background:var(--panel);border:1px solid var(--panel-border);font-size:16px;font-weight:700;color:var(--text);text-align:left}
+.perBtn .perTxt{flex:1}.perBtn .perChev{transition:transform .15s;color:var(--muted)}.perBtn.open .perChev{transform:rotate(180deg)}
+.perMenu{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:20;background:var(--panel);border:1px solid var(--panel-border);border-radius:14px;padding:6px;box-shadow:0 10px 28px rgba(0,0,0,.35)}
+.perItem{display:flex;align-items:center;justify-content:space-between;width:100%;padding:12px 12px;border-radius:10px;background:transparent;font-size:15px;font-weight:600;color:var(--text);text-align:left}
+.perItem.sel{background:var(--btn2)}.perCheck{font-style:normal;color:#5fcf6f;font-weight:900}
+.stNote.hint{color:var(--muted);font-size:13px;line-height:1.4;margin:-4px 0 6px}
+.chg{font-weight:800;font-size:16px}.chg.up{color:var(--easy)}.chg.down{color:var(--hard)}
+.botHead{display:flex;align-items:center;gap:12px;margin-bottom:8px}.botHead .botAvatar{width:48px;height:48px;flex:none}.botHead b{display:block;font-size:16px}.botHead small{color:var(--muted);font-size:12.5px}
+.importHint{margin:0 0 10px;color:var(--muted);font-size:14px;line-height:1.45}
+.importArea{width:100%;box-sizing:border-box;min-height:170px;resize:vertical;padding:12px;border-radius:12px;background:var(--btn2);border:1px solid var(--panel-border);color:var(--text);font:13px/1.4 ui-monospace,Menlo,Consolas,monospace}
+.importErr{color:var(--hard);font-size:14px;min-height:20px;margin:6px 0}
 .stCard{background:var(--panel);border:1px solid var(--panel-border);border-radius:16px;padding:16px;margin-bottom:12px}
 .stCard h3{margin:0 0 10px;font-size:14px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
 .stCard h3{margin:0 0 10px;font-size:14px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
@@ -461,7 +476,14 @@ body.fullview .navBtn[data-nav=full]{background:var(--accent);color:#fff}
 .moveTable .z{background-color:rgba(127,127,127,.09)}
 .moveTable .mn.z{background-color:var(--btn2)}
 .moveTable button.cur{background:var(--accent);color:#fff}
-.revBoardRow{display:flex;align-items:stretch;gap:8px;max-width:520px;margin:4px auto}
+.revBoardWrap{max-width:520px;margin:4px auto}
+.revBoardRow{display:flex;align-items:stretch;gap:8px;max-width:none;margin:0}
+.revPlayer{max-width:none;margin:4px 0 4px 30px;min-height:40px}
+.revPlayer .pAvatar,.revPlayer .pAvatar .botAvatar{width:32px;height:32px}
+.revPlayer .pName{display:flex;align-items:center;gap:0}
+.revPlayer .pName small{margin:0 5px 0 5px}
+.colDot{display:inline-block;flex:none;width:11px;height:11px;border-radius:3px;margin-right:7px;border:1px solid rgba(127,127,127,.7)}
+.colDot.w{background:#fff}.colDot.b{background:#262522}
 .revBoardRow .boardOuter{flex:1;min-width:0;max-width:none;margin:0}
 .evalBar{position:relative;width:22px;flex:none;border-radius:6px;overflow:hidden;background:#2b2a27;border:1px solid var(--panel-border)}
 .ebWhite{position:absolute;left:0;right:0;bottom:0;height:50%;background:#f4f4f2;transition:height .25s ease}
@@ -475,7 +497,7 @@ body.fullview .navBtn[data-nav=full]{background:var(--accent);color:#fff}
   .app{max-width:780px}
   .boardOuter{max-width:min(100%,max(320px,calc(100vh - 360px)));max-width:min(100%,max(320px,calc(100dvh - 360px)))}
   .moveStrip,.gameControls{max-width:min(100%,max(320px,calc(100vh - 360px)));max-width:min(100%,max(320px,calc(100dvh - 360px)))}
-  .revBoardRow{max-width:min(100%,max(350px,calc(100vh - 330px)));max-width:min(100%,max(350px,calc(100dvh - 330px)))}
+  .revBoardWrap{max-width:min(100%,max(350px,calc(100vh - 400px)));max-width:min(100%,max(350px,calc(100dvh - 400px)))}
 }
 @media(min-width:980px) and (orientation:landscape){
   .app{max-width:1180px}
@@ -492,9 +514,9 @@ body.fullview .navBtn[data-nav=full]{background:var(--accent);color:#fff}
   #playScreen .moveTable{max-height:max(150px,calc(min(100vh - 190px,58vw) - 280px));max-height:max(150px,calc(min(100dvh - 190px,58vw) - 280px))}
   /* review: board with the evaluation bar on the left, everything else on the right */
   #reviewScreen{max-width:none}
-  #reviewBody{display:grid;grid-template-columns:min(calc(100vh - 150px),56vw) minmax(300px,1fr);grid-template-columns:min(calc(100dvh - 150px),56vw) minmax(300px,1fr);column-gap:30px;align-items:start}
+  #reviewBody{display:grid;grid-template-columns:min(calc(100vh - 230px),56vw) minmax(300px,1fr);grid-template-columns:min(calc(100dvh - 230px),56vw) minmax(300px,1fr);column-gap:30px;align-items:start}
   #reviewBody>*{grid-column:2}
-  #reviewBody>.revBoardRow{grid-column:1;grid-row:1 / span 9;position:sticky;top:8px;max-width:none;width:100%;margin:0}
+  #reviewBody>.revBoardWrap{grid-column:1;grid-row:1 / span 9;position:sticky;top:8px;max-width:none;width:100%;margin:0}
   #reviewBody .revNav,#reviewBody .evalGraph{max-width:none}
   #reviewBody .revMoves{display:grid;grid-template-columns:46px 1fr 1fr;align-content:start;gap:0;background:var(--panel);border:1px solid var(--panel-border);border-radius:12px;overflow-y:auto;overflow-x:hidden;position:relative;font-size:15px;margin:0 0 14px;scrollbar-width:thin}
   #reviewBody .revMoves .mn{padding:8px 6px 8px 10px;color:var(--muted);opacity:1;font-size:14px;background:var(--btn2)}
@@ -505,7 +527,7 @@ body.fullview .navBtn[data-nav=full]{background:var(--accent);color:#fff}
   #reviewBody .revMoves{max-height:max(180px,calc(100vh - 560px));max-height:max(180px,calc(100dvh - 560px))}
 }
 body.fullview .app{max-width:none}
-body.fullview #playScreen .boardOuter,body.fullview #reviewScreen .revBoardRow{max-width:min(100%,max(320px,calc(100vh - 300px)));max-width:min(100%,max(320px,calc(100dvh - 300px)))}
+body.fullview #playScreen .boardOuter,body.fullview #reviewScreen .revBoardWrap{max-width:min(100%,max(320px,calc(100vh - 300px)));max-width:min(100%,max(320px,calc(100dvh - 300px)))}
 </style>
 </head>
 <body>
@@ -526,6 +548,7 @@ body.fullview #playScreen .boardOuter,body.fullview #reviewScreen .revBoardRow{m
     <button class="bigbtn primary" id="continueBtn" style="display:none"></button>
     <button class="bigbtn primary" id="playBtn" data-i18n="playBots">♞ Play vs Bots</button>
     <button class="bigbtn soft" id="statsBtn"><svg class="btnIco" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="14" width="3.6" height="6.5" rx=".8" fill="#fff"/><rect x="9.2" y="10.5" width="3.6" height="10" rx=".8" fill="#fff"/><rect x="14.9" y="13" width="3.6" height="7.5" rx=".8" fill="#fff"/><path d="M4.5 9 9.5 5.5 14 8l5-4" stroke="#6cc4ff" stroke-width="2"/></svg><span data-i18n="statsTitle">Profile &amp; statistics</span></button>
+    <button class="bigbtn dark" id="analyseHomeBtn" data-i18n="analyseAGame">Analyse a game</button>
     <div class="homeRow">
       <select class="bigbtn dark" id="langSel" aria-label="Language"></select>
       <button class="bigbtn dark" id="settBtn"><span class="btnGear" aria-hidden="true">⚙️</span> <span data-i18n="settings">Settings</span></button>
@@ -650,9 +673,13 @@ body.fullview #playScreen .boardOuter,body.fullview #reviewScreen .revBoardRow{m
   <div id="reviewBody" style="display:none">
     <div class="revHead" id="revHead"></div>
     <div class="revTiles" id="revTiles"></div>
-    <div class="revBoardRow" id="revBoardRow">
-      <div class="evalBar" id="evalBar" aria-hidden="true"><div class="ebWhite" id="ebWhite"></div><span class="ebTxt" id="ebTxt">0.0</span></div>
-      <div class="boardOuter" id="revBoardOuter"><svg class="boardSvg" id="revBoardSvg" viewBox="0 0 8 8" xmlns="http://www.w3.org/2000/svg"></svg></div>
+    <div class="revBoardWrap" id="revBoardWrap">
+      <div class="pBar revPlayer" id="revTop"></div>
+      <div class="revBoardRow" id="revBoardRow">
+        <div class="evalBar" id="evalBar" aria-hidden="true"><div class="ebWhite" id="ebWhite"></div><span class="ebTxt" id="ebTxt">0.0</span></div>
+        <div class="boardOuter" id="revBoardOuter"><svg class="boardSvg" id="revBoardSvg" viewBox="0 0 8 8" xmlns="http://www.w3.org/2000/svg"></svg></div>
+      </div>
+      <div class="pBar revPlayer" id="revBottom"></div>
     </div>
     <div class="revMoveLabel" id="revMoveLabel"></div>
     <div class="revNav">
@@ -726,6 +753,22 @@ body.fullview #playScreen .boardOuter,body.fullview #reviewScreen .revBoardRow{m
     <h2 data-i18n="statsTitle">Profile &amp; statistics</h2>
   </div>
   <div id="statsBody"></div>
+</div>
+
+<!-- ANALYSE A GAME (PGN) -->
+<div class="screen" id="importScreen">
+  <div class="topbar">
+    <button class="back" id="importBack">‹</button>
+    <h2 data-i18n="analyseAGame">Analyse a game</h2>
+  </div>
+  <div class="stCard">
+    <p class="importHint" data-i18n="importHint">Paste a PGN or load a .pgn file.</p>
+    <textarea id="importText" class="importArea" rows="9" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="PGN…"></textarea>
+    <input type="file" id="importFile" accept=".pgn,.txt,text/plain,application/x-chess-pgn" hidden>
+    <button class="bigbtn dark" id="importFileBtn" data-i18n="importFile" style="margin-top:8px">Load a .pgn file</button>
+    <div class="importErr" id="importErr" role="alert"></div>
+    <button class="bigbtn primary" id="importGo" data-i18n="importGo" style="margin-top:6px">Analyse</button>
+  </div>
 </div>
 
 <!-- PRIVACY -->

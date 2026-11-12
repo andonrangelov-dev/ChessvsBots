@@ -4,3 +4,5 @@
   Cache-Control: public, max-age=86400
 /sw.js
   Cache-Control: no-cache, no-store, must-revalidate
+/flags/*
+  Cache-Control: public, max-age=604800

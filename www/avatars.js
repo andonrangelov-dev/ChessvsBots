@@ -169,9 +169,16 @@ window.Avatars = (function () {
     LV: () => H3('#9e3039', '#ffffff', '#9e3039', [2, 1, 2]),
   };
 
+  // Every other country (and the Olympic flag 'OL') comes from the files www/flags/xx.svg (flag-icons, MIT; see tools/build_flags.mjs)
+  const ALL_CODES = 'AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS XK YE YT ZA ZM ZW'.split(' ');
+  const FILE_CODES = ALL_CODES.concat(['OL']);
   function flag(cc, h) {
     const draw = FLAGS[cc];
-    if (!draw) return '';
+    if (!draw) {
+      if (FILE_CODES.indexOf(cc) < 0) return '';
+      const hh = h || 14;
+      return `<img class="flag" src="flags/${cc.toLowerCase()}.svg" width="${(hh * 1.333).toFixed(1)}" height="${hh}" alt="${cc}" loading="lazy" decoding="async">`;
+    }
     const id = 'fl' + (uid++), hh = h || 14;
     return `<svg class="flag" viewBox="0 0 30 20" width="${(hh * 1.5).toFixed(1)}" height="${hh}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${cc}"><defs><clipPath id="${id}"><rect width="30" height="20" rx="2.6"/></clipPath></defs><g clip-path="url(#${id})">${draw()}</g><rect width="30" height="20" rx="2.6" fill="none" stroke="#000" stroke-opacity=".28" stroke-width="1"/></svg>`;
   }
@@ -192,5 +199,5 @@ window.Avatars = (function () {
     { hair: 'long', hc: 'red', skin: 0, top: '#1f7a4d', bg: '#34506a', mouth: 'smirk', eye: 'green' },
   ];
 
-  return { portrait, flag, PRESETS, FLAG_CODES: Object.keys(FLAGS), SKIN, HAIR, EYE };
+  return { portrait, flag, PRESETS, FLAG_CODES: Object.keys(FLAGS), ALL_CODES: FILE_CODES, SKIN, HAIR, EYE };
 })();

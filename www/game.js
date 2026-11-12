@@ -11,7 +11,10 @@
   // ── Constants ────────────────────────────────────────────────────────────
   const STORAGE_PREFIX = 'chessvsbots_';
   const START_RATING = 800;
-  const MAX_RECENT = 20;
+  const MAX_RECENT = 1000;     // finished games kept per player (for the period statistics and the games-per-bot lists)
+  const MAX_HIST = 400;        // rating history points
+  const MAX_IMPORTS = 1000;    // analysed games that were loaded from a PGN (per player)
+  const STATS_BUDGET = 900000; // characters of one player's statistics in localStorage; above it the stored analyses of the oldest games are dropped (made again when opened)
 
   // Board themes — separate palettes for dark and light UI modes
   const BOARD_THEMES = {
@@ -137,16 +140,28 @@
   }
   const savePrefs = () => storageSet('prefs', prefs);
 
-  function freshStats() { return { rating: START_RATING, peak: START_RATING, games: 0, w: 0, d: 0, l: 0, hist: [], bots: {}, best: 0, recent: [], stars: {} }; }
+  function freshStats() { return { rating: START_RATING, peak: START_RATING, games: 0, w: 0, d: 0, l: 0, hist: [], bots: {}, best: 0, recent: [], stars: {}, imports: [] }; }
   function loadStats() {
     const s = storageGet(pkey('stats'), null);
     stats = Object.assign(freshStats(), s && typeof s === 'object' ? s : {});
     if (!Array.isArray(stats.hist)) stats.hist = [];
     if (!Array.isArray(stats.recent)) stats.recent = [];
+    if (!Array.isArray(stats.imports)) stats.imports = [];
     if (!stats.bots || typeof stats.bots !== 'object') stats.bots = {};
     if (!stats.stars || typeof stats.stars !== 'object') stats.stars = {};
   }
-  const saveStats = () => storageSet(pkey('stats'), stats);
+  function saveStats() {
+    let json = JSON.stringify(stats);
+    if (json.length > STATS_BUDGET) {
+      let size = json.length;
+      for (const r of stats.recent.concat(stats.imports).filter(x => x.an).sort((x, y) => x.t - y.t)) {      // oldest first
+        if (size <= STATS_BUDGET) break;
+        size -= JSON.stringify(r.an).length + 6; delete r.an;
+      }
+      json = JSON.stringify(stats);
+    }
+    try { localStorage.setItem(STORAGE_PREFIX + pkey('stats'), json); } catch (e) {}
+  }
   function loadSaved() {
     const s = storageGet(pkey('save'), null);
     saved = (s && Bots.byId(s.botId) && Array.isArray(s.moves) && (s.color === 'w' || s.color === 'b')) ? s : null;
@@ -286,7 +301,7 @@
     try {
       const m = String(navigator.language || '').match(/[-_]([A-Za-z]{2})$/);
       const cc = m ? m[1].toUpperCase() : '';
-      return Avatars.FLAG_CODES.includes(cc) ? cc : '';
+      return Avatars.ALL_CODES.includes(cc) ? cc : '';
     } catch (e) { return ''; }
   }
   function cleanProfile(p, id) {
@@ -294,7 +309,7 @@
     const av = p.av && p.av.t === 'photo' && typeof p.av.d === 'string' && p.av.d.indexOf('data:image/') === 0 ? { t: 'photo', d: p.av.d }
       : p.av && p.av.t === 'none' ? { t: 'none' }
       : { t: 'preset', i: p.av && p.av.i >= 0 && p.av.i < Avatars.PRESETS.length ? p.av.i | 0 : 0 };
-    return { id, name: typeof p.name === 'string' ? p.name.slice(0, 20) : '', cc: Avatars.FLAG_CODES.includes(p.cc) ? p.cc : '', av };
+    return { id, name: typeof p.name === 'string' ? p.name.slice(0, 20) : '', cc: Avatars.ALL_CODES.includes(p.cc) ? p.cc : '', av };
   }
   function loadProfile() {
     const all = storageGet('profiles', null);
@@ -336,7 +351,8 @@
   function countryNames() {
     let dn = null;
     try { dn = new Intl.DisplayNames([window._cvbLang === 'pt' ? 'pt-BR' : (window._cvbLang || 'en')], { type: 'region' }); } catch (e) {}
-    return Avatars.FLAG_CODES.map(c => ({ c, n: (dn && dn.of(c)) || c })).sort((a, b) => a.n.localeCompare(b.n, window._cvbLang || 'en'));
+    const list = Avatars.ALL_CODES.filter(c => c !== 'OL').map(c => ({ c, n: (dn && dn.of(c)) || c })).sort((a, b) => a.n.localeCompare(b.n, window._cvbLang || 'en'));
+    return [{ c: 'OL', n: tt('olympicFlag') }].concat(list);      // the Olympic flag right after "No country"
   }
   // change the current player: the game in progress and the statistics of the previous one are saved first
   function switchProfile(id, quiet) {
@@ -348,7 +364,7 @@
     profiles.cur = id; profile = p;
     saveProfile();
     G = null;
-    loadStats(); loadSaved();
+    loadStats(); loadSaved(); statsBot = null;
     renderProfile(true); refreshProfileViews();
     if (!quiet) showToast(tt('playingAs', { name: playerLabel(p) }), 1800);
   }
@@ -367,7 +383,7 @@
     storageDel(keyFor(gone.id, 'stats')); storageDel(keyFor(gone.id, 'save'));
     profiles.cur = profiles.list[0].id; profile = profiles.list[0];
     saveProfile();
-    loadStats(); loadSaved();
+    loadStats(); loadSaved(); statsBot = null;
     renderProfile(true); refreshProfileViews();
   }
   function refreshProfileViews() {
@@ -431,11 +447,24 @@
   function openProfile(from) { profileFrom = from || 'homeScreen'; showScreen('profileScreen'); }
 
   // ── Home ─────────────────────────────────────────────────────────────────
+  // When the current player has not played yet, the home board shows the most recent game of any other player on this device.
+  function lastGameOfOthers() {
+    let best = null, bt = -1;
+    for (const p of profiles.list) {
+      if (p.id === profiles.cur) continue;
+      const sv = storageGet(keyFor(p.id, 'save'), null), st = storageGet(keyFor(p.id, 'stats'), null);
+      const cand = [];
+      if (sv && Array.isArray(sv.moves) && sv.moves.length) cand.push({ g: sv, t: +sv.t || 0 });
+      if (st && Array.isArray(st.recent) && st.recent[0] && Array.isArray(st.recent[0].moves) && st.recent[0].moves.length) cand.push({ g: st.recent[0], t: +st.recent[0].t || 0 });
+      for (const c of cand) if (c.t >= bt) { bt = c.t; best = c.g; }
+    }
+    return best;
+  }
   function renderHome() {
     const svg = $('homePreview');
     if (svg) {
       // the board on the home screen shows the last game: the one in progress, otherwise the last finished one (with its last move highlighted)
-      const lg = saved || (stats.recent && stats.recent[0]) || null;
+      const lg = saved || (stats.recent && stats.recent[0]) || lastGameOfOthers();
       let fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', last = null;
       if (lg && Array.isArray(lg.moves) && lg.moves.length) {
         try { fen = fenOf(lg.moves); const u = lg.moves[lg.moves.length - 1]; last = { from: u.slice(0, 2), to: u.slice(2, 4) }; } catch (e) { fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'; last = null; }
@@ -495,7 +524,8 @@
         btn.className = 'botTile' + (b.id === rec.id ? ' rec' : '');
         btn.setAttribute('aria-label', b.name + ' ' + b.elo);
         btn.innerHTML = '<span class="tAv">' + Bots.avatar(b) + '<span class="tFlag">' + Bots.flag(b, 11) + '</span></span>' +
-          '<span class="tName">' + (b.short || b.name) + '</span><span class="tElo">' + b.elo + '</span>' + starsHtml(starsOf(b.id));
+          '<span class="tName">' + (b.short || b.name) + '</span><span class="tElo">' + b.elo + '</span>' + starsHtml(starsOf(b.id)) +
+          (b.id === rec.id ? '<span class="tRec">' + esc(tt('recommended')) + '</span>' : '');
         btn.addEventListener('click', () => { soundClick(); openSetup(b.id); });
         body.appendChild(btn);
       }
@@ -915,7 +945,7 @@
     const stars = outcome !== 'win' ? 0 : (G.undos > 0 || G.hints > 3) ? 1 : G.hints > 0 ? 2 : 3;
     if (stars) stats.stars[G.bot.id] = Math.max(starsOf(G.bot.id), stars);
     if (outcome === 'win') { br.w++; stats.best = Math.max(stats.best || 0, G.bot.elo); } else if (outcome === 'draw') br.d++; else br.l++;
-    stats.hist.push({ t: Date.now(), r: stats.rating }); if (stats.hist.length > 80) stats.hist.shift();
+    stats.hist.push({ t: Date.now(), r: stats.rating }); if (stats.hist.length > MAX_HIST) stats.hist.shift();
     const moves = G.chess.history({ verbose: true }).map(m => m.from + m.to + (m.promotion || ''));
     const rec = { id: Date.now(), t: Date.now(), bot: G.bot.id, color: G.color, res: outcome === 'win' ? 'w' : outcome === 'draw' ? 'd' : 'l', reason, delta, after: stats.rating, moves, assisted, stars };
     stats.recent.unshift(rec);
@@ -967,10 +997,36 @@
     if (reviewRunningToken !== null) try { Engine.stop(); } catch (_) {}
   }
 
+  // an imported game: names of White and Black
+  function impNames(rec) {
+    const w = rec.wName != null ? rec.wName : (rec.color === 'w' ? rec.myName : rec.oppName);
+    const b = rec.bName != null ? rec.bName : (rec.color === 'w' ? rec.oppName : rec.myName);
+    return { w: w || tt('white'), b: b || tt('black') };
+  }
+  function revPlayerInfo(side) {
+    const rec = rv.rec;
+    if (rec.imported) { const elo = side === 'w' ? rec.wElo : rec.bElo; return { name: impNames(rec)[side], elo: elo > 0 ? elo : null, av: blankAvatar(), flag: '' }; }
+    if (side === rec.color) {
+      const before = (typeof rec.after === 'number' && typeof rec.delta === 'number') ? rec.after - rec.delta : null;     // your rating before the game
+      return { name: profName(), elo: before, av: profAvatarHtml(), flag: profFlagHtml(13) };
+    }
+    return { name: rv.bot.name, elo: rv.bot.elo, av: Bots.avatar(rv.bot), flag: Bots.flag(rv.bot, 13) };
+  }
+  // names and ratings above and below the board (the side at the bottom is the one the board is turned to)
+  function renderPlayerBars() {
+    if (!rv) return;
+    const bottom = ((rv.rec.color === 'w') !== !!rv.flipped) ? 'w' : 'b';
+    const mk = (id, side) => {
+      const p = revPlayerInfo(side);
+      $(id).innerHTML = '<div class="pAvatar">' + p.av + '</div><div class="pInfo"><div class="pName"><i class="colDot ' + side + '" aria-hidden="true"></i>' + esc(p.name) + (p.elo != null ? '<small>(' + p.elo + ')</small>' : '') + ' ' + p.flag + '</div></div>';
+    };
+    mk('revTop', bottom === 'w' ? 'b' : 'w'); mk('revBottom', bottom);
+  }
+
   async function openReview(rec, from) {
     reviewFrom = from || 'homeScreen';
     $('gameOverlay').style.display = 'none';
-    const bot = Bots.byId(rec.bot);
+    const bot = rec.imported ? { name: impNames(rec)[rec.color === 'w' ? 'b' : 'w'], imported: true } : Bots.byId(rec.bot);
     // Previously saved reviews used a rating-dependent, approximate formula.
     // Reanalyse them once instead of displaying outdated cached Accuracy values.
     if (rec.an && rec.an.version !== ACCURACY_VERSION) delete rec.an;
@@ -990,7 +1046,7 @@
     if (tok !== reviewToken) return;           // left the screen meanwhile
     if (!an) { $('revProgText').textContent = tt('engineFailed'); return; }
     rec.an = an;
-    if (stats.recent.some(r => r.id === rec.id)) saveStats();
+    if (stats.recent.some(r => r.id === rec.id) || stats.imports.some(r => r.id === rec.id)) saveStats();
     rv.an = an;
     startReviewView();
   }
@@ -1042,7 +1098,7 @@
     mvs.forEach((m, i) => { if (m.san.indexOf('#') > 0) best[i] = rec.moves[i]; });
     const sg = scoreGame(pov, rec.moves, best);
     const cls = [], drop = [], gap = [];
-    const counts = { best: 0, excellent: 0, good: 0, inacc: 0, mistake: 0, blunder: 0 };
+    const counts = { best: 0, excellent: 0, good: 0, inacc: 0, mistake: 0, blunder: 0 }, countsOpp = Object.assign({}, counts);
     for (let i = 0; i < n; i++) {
       const mover = mvs[i].color, r = sg.moves[i];
       const before = mover === 'w' ? pov[i] : -pov[i];
@@ -1050,28 +1106,32 @@
       cls[i] = r.cls;
       // gap between the best and the second best move (how "only" the best move was), from the mover's point of view
       gap[i] = (second[i] != null && best[i]) ? Math.round(Math.max(0, winPct(before) - winPct(second[i])) * 10) / 10 : 0;
-      if (mover === userSide) counts[r.cls]++;
+      (mover === userSide ? counts : countsOpp)[r.cls]++;
     }
     // No turns by a player means no Accuracy sample (not a 0%-accuracy game).
     const turns = { w: 0, b: 0 };
     mvs.forEach(m => turns[m.color]++);
     const acc = { you: turns[userSide] ? Math.round(sg[userSide]) : null, bot: turns[botSide] ? Math.round(sg[botSide]) : null };
-    // key moments of the player
-    const mine = [];
-    for (let i = 0; i < n; i++) if (mvs[i].color === userSide) mine.push(i);
-    const key = [];
-    mine.filter(i => cls[i] === 'blunder' || cls[i] === 'mistake').sort((a, b) => drop[b] - drop[a]).slice(0, 3).forEach(i => key.push({ type: 'mistake', ply: i }));
-    if (!key.length) mine.filter(i => cls[i] === 'inacc').sort((a, b) => drop[b] - drop[a]).slice(0, 2).forEach(i => key.push({ type: 'mistake', ply: i }));
-    // best move: the player's move that was best and clearly better than the alternatives
-    let bi = -1, bg = -1;
-    for (const i of mine) {
-      const isMate = mvs[i].san.indexOf('#') > 0;
-      if (cls[i] !== 'best' && !isMate) continue;
-      const g = isMate ? 100 : gap[i];
-      if (g > bg) { bg = g; bi = i; }
-    }
-    if (bi >= 0) key.push({ type: 'best', ply: bi });
-    return { version: ACCURACY_VERSION, pov: pov.map(v => Math.max(-1500, Math.min(1500, v))), best, cls, drop, gap, acc, counts, key };
+    // key moments of one side: its biggest mistakes and its best move
+    const keyOf = side => {
+      const mine = [];
+      for (let i = 0; i < n; i++) if (mvs[i].color === side) mine.push(i);
+      const key = [];
+      mine.filter(i => cls[i] === 'blunder' || cls[i] === 'mistake').sort((a, b) => drop[b] - drop[a]).slice(0, 3).forEach(i => key.push({ type: 'mistake', ply: i }));
+      if (!key.length) mine.filter(i => cls[i] === 'inacc').sort((a, b) => drop[b] - drop[a]).slice(0, 2).forEach(i => key.push({ type: 'mistake', ply: i }));
+      // best move: the player's move that was best and clearly better than the alternatives
+      let bi = -1, bg = -1;
+      for (const i of mine) {
+        const isMate = mvs[i].san.indexOf('#') > 0;
+        if (cls[i] !== 'best' && !isMate) continue;
+        const g = isMate ? 100 : gap[i];
+        if (g > bg) { bg = g; bi = i; }
+      }
+      if (bi >= 0) key.push({ type: 'best', ply: bi });
+      return key;
+    };
+    const key = keyOf(userSide), keyOpp = keyOf(botSide);
+    return { version: ACCURACY_VERSION, pov: pov.map(v => Math.max(-1500, Math.min(1500, v))), best, cls, drop, gap, acc, counts, countsOpp, key, keyOpp };
   }
 
   function jumpTo(k) {
@@ -1111,7 +1171,7 @@
     const i = k - 1;
     const num = Math.floor(i / 2) + 1, dots = i % 2 === 0 ? '.' : '…';
     const cname = { best: 'cBest', excellent: 'cExcellent', good: 'cGood', inacc: 'cInacc', mistake: 'cMistake', blunder: 'cBlunder' }[an.cls[i]];
-    const who = ((i % 2 === 0) ? 'w' : 'b') === rv.rec.color ? tt('you') : rv.bot.name;
+    const who = ((i % 2 === 0) ? 'w' : 'b') === rv.rec.color ? (rv.rec.imported ? impNames(rv.rec)[rv.rec.color] : tt('you')) : rv.bot.name;
     let html = '<b>' + num + dots + ' ' + sanAt(i) + '</b> · ' + who + '<span class="tag" style="background:' + CLS_COLOR[an.cls[i]] + '">' + tt(cname) + '</span>';
     if ((an.cls[i] === 'inacc' || an.cls[i] === 'mistake' || an.cls[i] === 'blunder') && an.best[i]) html += '<br>' + tt('betterWas', { san: bestSanAt(i) });
     html += '<br><small style="color:var(--muted)">' + tt('evalLbl') + ' ' + fmtEval(an.pov[k]) + '</small>';
@@ -1131,38 +1191,59 @@
     if (!rv || !rv.an) return;
     const an = rv.an, rec = rv.rec, bot = rv.bot;
     const youSide = rec.color === 'w' ? tt('white') : tt('black');
-    $('revHead').innerHTML = Bots.avatar(bot) + '<span>' + tt('revVs', { bot: bot.name, elo: bot.elo }) + ' · ' + youSide + ' · ' + tt(rec.res === 'w' ? 'goWin' : rec.res === 'd' ? 'goDraw' : 'goLoss') + '</span>';
-    const c = an.counts;
+    const resTxt = rec.res === 'u' ? '' : ' · ' + tt(rec.res === 'w' ? 'goWin' : rec.res === 'd' ? 'goDraw' : 'goLoss');
+    if (rec.imported) { const nm = impNames(rec); $('revHead').innerHTML = '<span>' + esc(nm.w) + ' — ' + esc(nm.b) + (rec.score && rec.score !== '*' ? ' · ' + esc(rec.score) : '') + '</span>'; }
+    else $('revHead').innerHTML = Bots.avatar(bot) + '<span>' + tt('revVs', { bot: bot.name, elo: bot.elo }) + ' · ' + youSide + resTxt + '</span>';
+    $('revRematch').style.display = rec.imported ? 'none' : '';
+    $('revOther').style.display = rec.imported ? 'none' : '';
+    renderPlayerBars();
     $('revTiles').innerHTML =
-      '<div class="tile"><b>' + (an.acc.you == null ? '—' : an.acc.you + '%') + '</b><span>' + tt('accYou') + '</span></div>' +
-      '<div class="tile"><b>' + (an.acc.bot == null ? '—' : an.acc.bot + '%') + '</b><span>' + tt('accBot', { bot: bot.name }) + '</span></div>';
-    // key moments
+      '<div class="tile"><b>' + (an.acc.you == null ? '—' : an.acc.you + '%') + '</b><span>' + (rec.imported ? tt('accBot', { bot: esc(impNames(rec)[rec.color]) }) : tt('accYou')) + '</span></div>' +
+      '<div class="tile"><b>' + (an.acc.bot == null ? '—' : an.acc.bot + '%') + '</b><span>' + tt('accBot', { bot: esc(bot.name) }) + '</span></div>';
+    // key moments and move counts of both players
     const key = $('revKey'); key.innerHTML = '';
-    const mistakes = an.key.filter(k => k.type === 'mistake'), bestK = an.key.find(k => k.type === 'best');
-    const counts = document.createElement('div');
-    counts.className = 'keyCard';
     const cell = (n, k, nm) => '<div><b style="color:' + CLS_COLOR[k] + '">' + n + '</b><span>' + tt(nm) + '</span></div>';
-    counts.innerHTML = '<div class="kIco">📊</div><div class="kTxt"><b>' + tt('yourMoves') + '</b><div class="cntRow">' +
-      cell(c.best, 'best', 'cBest') + cell(c.excellent || 0, 'excellent', 'cExcellent') + cell(c.good, 'good', 'cGood') + cell(c.inacc, 'inacc', 'cInacc') + cell(c.mistake, 'mistake', 'cMistake') + cell(c.blunder, 'blunder', 'cBlunder') + '</div></div>';
-    key.appendChild(counts);
-    if (bestK) {
-      const b = document.createElement('button'); b.className = 'keyCard';
-      b.innerHTML = '<div class="kIco">⭐</div><div class="kTxt"><b>' + tt('bestMoveTitle') + '</b><span>' + (Math.floor(bestK.ply / 2) + 1) + (bestK.ply % 2 === 0 ? '. ' : '… ') + sanAt(bestK.ply) + '</span></div><span class="chev">›</span>';
-      b.addEventListener('click', () => { jumpTo(bestK.ply + 1); scrollToBoard(); });
-      key.appendChild(b);
-    }
-    if (mistakes.length) {
-      mistakes.forEach(m => {
+    const countsCard = (title, c) => {
+      const el = document.createElement('div'); el.className = 'keyCard';
+      c = c || { best: 0, excellent: 0, good: 0, inacc: 0, mistake: 0, blunder: 0 };
+      el.innerHTML = '<div class="kIco">📊</div><div class="kTxt"><b>' + title + '</b><div class="cntRow">' +
+        cell(c.best, 'best', 'cBest') + cell(c.excellent || 0, 'excellent', 'cExcellent') + cell(c.good, 'good', 'cGood') + cell(c.inacc, 'inacc', 'cInacc') + cell(c.mistake, 'mistake', 'cMistake') + cell(c.blunder, 'blunder', 'cBlunder') + '</div></div>';
+      return el;
+    };
+    const keyCards = (keys, prefix) => {
+      const mistakes = keys.filter(k => k.type === 'mistake'), bestK = keys.find(k => k.type === 'best');
+      if (bestK) {
         const b = document.createElement('button'); b.className = 'keyCard';
-        const k = an.cls[m.ply], cname = { inacc: 'cInacc', mistake: 'cMistake', blunder: 'cBlunder' }[k];
-        b.innerHTML = '<div class="kIco" style="color:' + CLS_COLOR[k] + '">⚠</div><div class="kTxt"><b>' + tt(cname) + ' · ' + (Math.floor(m.ply / 2) + 1) + (m.ply % 2 === 0 ? '. ' : '… ') + sanAt(m.ply) + '</b><span>' + tt('betterWas', { san: bestSanAt(m.ply) }) + '</span></div><span class="chev">›</span>';
-        b.addEventListener('click', () => { jumpTo(m.ply + 1); scrollToBoard(); });
+        b.innerHTML = '<div class="kIco">⭐</div><div class="kTxt"><b>' + prefix + tt(prefix ? 'bestMoveNeutral' : 'bestMoveTitle') + '</b><span>' + (Math.floor(bestK.ply / 2) + 1) + (bestK.ply % 2 === 0 ? '. ' : '… ') + sanAt(bestK.ply) + '</span></div><span class="chev">›</span>';
+        b.addEventListener('click', () => { jumpTo(bestK.ply + 1); scrollToBoard(); });
         key.appendChild(b);
-      });
+      }
+      if (mistakes.length) {
+        mistakes.forEach(m => {
+          const b = document.createElement('button'); b.className = 'keyCard';
+          const k = an.cls[m.ply], cname = { inacc: 'cInacc', mistake: 'cMistake', blunder: 'cBlunder' }[k];
+          b.innerHTML = '<div class="kIco" style="color:' + CLS_COLOR[k] + '">⚠</div><div class="kTxt"><b>' + prefix + tt(cname) + ' · ' + (Math.floor(m.ply / 2) + 1) + (m.ply % 2 === 0 ? '. ' : '… ') + sanAt(m.ply) + '</b><span>' + tt('betterWas', { san: bestSanAt(m.ply) }) + '</span></div><span class="chev">›</span>';
+          b.addEventListener('click', () => { jumpTo(m.ply + 1); scrollToBoard(); });
+          key.appendChild(b);
+        });
+      } else {
+        const ok = document.createElement('div'); ok.className = 'keyCard';
+        ok.innerHTML = '<div class="kIco">👏</div><div class="kTxt"><b>' + prefix + tt('noMistakes') + '</b></div>';
+        key.appendChild(ok);
+      }
+    };
+    if (rec.imported) {
+      // a game from a file: White first, then Black, each with the player's name
+      const nm = impNames(rec);
+      for (const side of ['w', 'b']) {
+        const mine = side === rec.color;
+        key.appendChild(countsCard(tt('movesOf', { name: esc(nm[side]) }), mine ? an.counts : an.countsOpp));
+      }
+      for (const side of ['w', 'b']) keyCards(side === rec.color ? an.key : (an.keyOpp || []), esc(nm[side]) + ' · ');
     } else {
-      const ok = document.createElement('div'); ok.className = 'keyCard';
-      ok.innerHTML = '<div class="kIco">👏</div><div class="kTxt"><b>' + tt('noMistakes') + '</b></div>';
-      key.appendChild(ok);
+      key.appendChild(countsCard(tt('yourMoves'), an.counts));
+      key.appendChild(countsCard(tt('oppMoves'), an.countsOpp));
+      keyCards(an.key, '');
     }
     // move list
     const ml = $('revMoves'); ml.innerHTML = '';
@@ -1170,7 +1251,7 @@
       const zc = (Math.floor(i / 2) % 2) ? ' z' : '';
       if (i % 2 === 0) { const s = document.createElement('span'); s.className = 'mn' + zc; s.textContent = (i / 2 + 1) + '.'; ml.appendChild(s); }
       const b = document.createElement('button'); b.dataset.k = i + 1; b.className = zc.trim();
-      b.innerHTML = '<i style="background:' + CLS_COLOR[an.cls[i]] + ';opacity:' + (((i % 2 === 0) ? 'w' : 'b') === rec.color ? 1 : 0.35) + '"></i>' + sanAt(i);
+      b.innerHTML = '<i style="background:' + CLS_COLOR[an.cls[i]] + ';opacity:' + ((rec.imported || ((i % 2 === 0) ? 'w' : 'b') === rec.color) ? 1 : 0.35) + '"></i>' + sanAt(i);
       b.addEventListener('click', () => jumpTo(i + 1));
       ml.appendChild(b);
       if (i % 2 === 0 && i === rec.moves.length - 1) { const e = document.createElement('span'); e.className = zc.trim(); e.setAttribute('aria-hidden', 'true'); ml.appendChild(e); }
@@ -1188,7 +1269,7 @@
     for (let i = 0; i <= n; i++) line += (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(an.pov[i]).toFixed(1);
     area = line + 'L' + W + ' ' + H + 'L0 ' + H + 'Z';
     const dots = [];
-    for (let i = 0; i < n; i++) if (((i % 2 === 0) ? 'w' : 'b') === rv.rec.color && (an.cls[i] === 'mistake' || an.cls[i] === 'blunder'))
+    for (let i = 0; i < n; i++) if ((rv.rec.imported || ((i % 2 === 0) ? 'w' : 'b') === rv.rec.color) && (an.cls[i] === 'mistake' || an.cls[i] === 'blunder'))
       dots.push('<circle cx="' + X(i + 1).toFixed(1) + '" cy="' + Y(an.pov[i + 1]).toFixed(1) + '" r="3.2" fill="' + CLS_COLOR[an.cls[i]] + '"/>');
     svg.innerHTML = '<rect x="0" y="0" width="300" height="80" fill="none"/>' +
       '<path d="' + area + '" fill="var(--ink)" opacity=".16"/>' +
@@ -1228,42 +1309,158 @@
     return '<svg class="spark" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" style="display:block;width:100%;height:56px;margin-top:10px"><path d="' + d + '" fill="none" stroke="var(--accent2)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/><circle cx="' + last[0] + '" cy="' + last[1] + '" r="3.5" fill="var(--accent)"/></svg>';
   }
   let resetArmed = false;
+  // ── Statistics: period, opponents, games per bot ─────────────────────────
+  const PERIODS = [['7', 7], ['30', 30], ['90', 90], ['365', 365], ['all', 0]];
+  const periodName = k => tt(k === 'all' ? 'perAll' : 'per' + k);
+  let statsPeriod = 'all', statsBot = null, recLimit = 10;
+  const periodCutoff = () => { const p = PERIODS.find(x => x[0] === statsPeriod); return p && p[1] ? Date.now() - p[1] * 86400000 : 0; };
+  const locale = () => (window._cvbLang === 'pt' ? 'pt-BR' : (window._cvbLang || 'en'));
+  function fmtWhen(t) {
+    const d = new Date(t);
+    try { return d.toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' }) + ' · ' + d.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' }); }
+    catch (e) { return d.toLocaleString(); }
+  }
+  function loadStatsPeriod() { const v = storageGet('statsPeriod', 'all'); statsPeriod = PERIODS.some(x => x[0] === v) ? v : 'all'; }
+  function gameRowEl(r) {
+    const b = Bots.byId(r.bot); if (!b) return null;
+    const btn = document.createElement('button'); btn.className = 'recRow';
+    btn.innerHTML = Bots.avatar(b) + '<div class="rInfo">' + b.name + ' · ' + b.elo + '<small>' + fmtWhen(r.t) + ' · ' + tt(r.color === 'w' ? 'white' : 'black') + ' · ' + Math.ceil(r.moves.length / 2) + '</small></div>' +
+      '<span class="rRes ' + r.res + '">' + tt(r.res === 'w' ? 'resW' : r.res === 'd' ? 'resD' : 'resL') + '</span><span class="rDelta">' + fmtDelta(r.delta) + '</span><span class="chev">›</span>';
+    btn.addEventListener('click', () => openReview(r, 'statsScreen'));
+    return btn;
+  }
+  function importRowEl(r) {
+    const btn = document.createElement('button'); btn.className = 'recRow';
+    const nm = impNames(r);
+    const score = r.score && r.score !== '*' ? '<span class="rRes">' + esc(r.score) + '</span>' : '';
+    btn.innerHTML = blankAvatar() + '<div class="rInfo">' + esc(nm.w) + ' — ' + esc(nm.b) + '<small>' + fmtWhen(r.t) + ' · ' + Math.ceil(r.moves.length / 2) + '</small></div>' + score + '<span class="chev">›</span>';
+    btn.addEventListener('click', () => openReview(r, 'statsScreen'));
+    return btn;
+  }
+  function periodDropdownHtml() {
+    return '<div class="perWrap"><button class="perBtn" id="perBtn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="' + esc(tt('periodLbl')) + '">' +
+      '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>' +
+      '<span class="perTxt">' + esc(periodName(statsPeriod)) + '</span><svg class="perChev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>' +
+      '<div class="perMenu" id="perMenu" role="listbox" style="display:none">' +
+      PERIODS.map(p => '<button type="button" role="option" class="perItem' + (p[0] === statsPeriod ? ' sel' : '') + '" data-p="' + p[0] + '" aria-selected="' + (p[0] === statsPeriod) + '"><span>' + esc(periodName(p[0])) + '</span>' + (p[0] === statsPeriod ? '<i class="perCheck" aria-hidden="true">✓</i>' : '') + '</button>').join('') + '</div></div>';
+  }
   function renderStats() {
     const body = $('statsBody');
     if (!body) return;
-    const s = stats;
-    const rate = s.games ? Math.round((s.w + s.d * 0.5) / s.games * 100) : 0;
+    const s = stats, cut = periodCutoff(), all = statsPeriod === 'all';
+    const games = s.recent.filter(r => r.t >= cut && Bots.byId(r.bot));
+    // totals: all time = the exact counters, a period = counted from the stored games
+    let n, w, d, l, bestElo = 0;
+    if (all) { n = s.games; w = s.w; d = s.d; l = s.l; bestElo = s.best || 0; }
+    else { n = games.length; w = d = l = 0; for (const r of games) { if (r.res === 'w') { w++; bestElo = Math.max(bestElo, Bots.byId(r.bot).elo); } else if (r.res === 'd') d++; else l++; } }
+    const rate = n ? Math.round((w + d * 0.5) / n * 100) : 0;
+    // rating over the period
+    const histIn = s.hist.filter(h => h.t >= cut);
+    const prev = s.hist.filter(h => h.t < cut);
+    const startR = all ? START_RATING : (prev.length ? prev[prev.length - 1].r : (histIn.length ? START_RATING : s.rating));
+    const series = (all ? [START_RATING] : (startR != null ? [startR] : [])).concat(histIn.map(h => h.r));
+    const change = series.length >= 2 ? s.rating - series[0] : 0;
     let html = '<button class="profChip big" id="statsProfile">' + profAvatarHtml() + '<span class="pcName">' + esc(profName()) + ' ' + profFlagHtml(16) + '</span><span class="pcEdit" aria-hidden="true">✎ ' + tt('profileEdit') + '</span></button>' +
-      '<div class="stCard"><h3>' + tt('yourRating') + '</h3><div class="eloBig" style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap"><b style="font-size:44px;line-height:1;color:var(--accent2)">' + s.rating + '</b><span class="lvlTag">' + tt(levelKey(s.rating)) + '</span></div>' +
-      '<div class="stNote" style="color:var(--muted);font-size:13px;line-height:1.45;margin-top:8px">' + (s.games < 10 ? tt('provisionalNote') : tt('peakNote', { n: s.peak })) + '</div>' +
-      sparkline([START_RATING].concat(s.hist.map(h => h.r))) + '</div>';
-    html += '<div class="tiles4"><div class="tile"><b>' + s.games + '</b><span>' + tt('played') + '</span></div><div class="tile w"><b>' + s.w + '</b><span>' + tt('wins') + '</span></div><div class="tile d"><b>' + s.d + '</b><span>' + tt('draws') + '</span></div><div class="tile l"><b>' + s.l + '</b><span>' + tt('losses') + '</span></div></div>';
-    if (s.games) {
-      const bb = s.best ? Bots.list.filter(b => b.elo === s.best)[0] : null;
-      html += '<div class="stCard"><div class="kv"><span>' + tt('scoreRate') + '</span><b>' + rate + '%</b></div>' +
-        '<div class="kv"><span>' + tt('bestWin') + '</span><b>' + (bb ? bb.name + ' · ' + bb.elo : '—') + '</b></div></div>';
-    } else html += '<div class="stCard"><div class="stNote" style="color:var(--muted);font-size:14px;line-height:1.45">' + tt('noGamesYet') + '</div></div>';
-    if (s.recent.length) {
-      html += '<div class="stCard"><h3>' + tt('recentGames') + '</h3><div id="recList"></div></div>';
+      '<button class="bigbtn soft" id="statsAnalyse" style="margin-bottom:12px">' + tt('analyseAGame') + '</button>' +
+      periodDropdownHtml();
+    if (statsBot) {
+      const b = Bots.byId(statsBot);
+      const mine = games.filter(r => r.bot === statsBot);
+      let bw = 0, bd = 0, bl = 0; for (const r of mine) { if (r.res === 'w') bw++; else if (r.res === 'd') bd++; else bl++; }
+      html += '<button class="bigbtn dark" id="statsAllBots" style="margin:12px 0 10px">' + tt('allOpponents') + '</button>' +
+        '<div class="stCard"><div class="botHead">' + Bots.avatar(b) + '<div><b>' + tt('gamesVsBot', { bot: esc(b.name) }) + '</b><small>' + b.elo + ' · ' + tt('gamesCount', { n: mine.length }) + ' · ' + bw + ' ' + tt('wins') + ' · ' + bd + ' ' + tt('draws') + ' · ' + bl + ' ' + tt('losses') + '</small></div></div>' +
+        (mine.length ? '<div class="stNote hint">' + tt('tapToAnalyse') + '</div><div id="botGames"></div>' : '<div class="stNote hint">' + tt('noGamesPeriod') + '</div>') + '</div>';
+      body.innerHTML = html;
+      const gl = $('botGames'); if (gl) for (const r of mine) { const el = gameRowEl(r); if (el) gl.appendChild(el); }
+    } else {
+      html += '<div class="stCard"><h3>' + tt('yourRating') + '</h3><div class="eloBig" style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap"><b style="font-size:44px;line-height:1;color:var(--accent2)">' + s.rating + '</b><span class="lvlTag">' + tt(levelKey(s.rating)) + '</span>' +
+        (change ? '<span class="chg ' + (change > 0 ? 'up' : 'down') + '">' + (change > 0 ? '▲ ' : '▼ ') + Math.abs(change) + '</span>' : '') + '</div>' +
+        '<div class="stNote" style="color:var(--muted);font-size:13px;line-height:1.45;margin-top:8px">' + (s.games < 10 ? tt('provisionalNote') : tt('peakNote', { n: s.peak })) + '</div>' +
+        sparkline(series) + '</div>';
+      html += '<div class="tiles4"><div class="tile"><b>' + n + '</b><span>' + tt('played') + '</span></div><div class="tile w"><b>' + w + '</b><span>' + tt('wins') + '</span></div><div class="tile d"><b>' + d + '</b><span>' + tt('draws') + '</span></div><div class="tile l"><b>' + l + '</b><span>' + tt('losses') + '</span></div></div>';
+      if (n) {
+        const bb = bestElo ? Bots.list.filter(b => b.elo === bestElo)[0] : null;
+        html += '<div class="stCard"><div class="kv"><span>' + tt('scoreRate') + '</span><b>' + rate + '%</b></div>' +
+          '<div class="kv"><span>' + tt('bestWin') + '</span><b>' + (bb ? bb.name + ' · ' + bb.elo : '—') + '</b></div></div>';
+      } else html += '<div class="stCard"><div class="stNote" style="color:var(--muted);font-size:14px;line-height:1.45">' + tt(all ? 'noGamesYet' : 'noGamesPeriod') + '</div></div>';
+      // opponents (most recently played first)
+      const byBot = new Map();
+      for (const r of games) { let e = byBot.get(r.bot); if (!e) byBot.set(r.bot, e = { id: r.bot, n: 0, w: 0, d: 0, l: 0, t: 0 }); e.n++; e[r.res]++; e.t = Math.max(e.t, r.t); }
+      const opp = Array.from(byBot.values()).sort((a, b) => b.t - a.t);
+      if (opp.length) html += '<div class="stCard"><h3>' + tt('opponentsTitle') + '</h3><div class="stNote hint">' + tt('opponentsHint') + '</div><div id="oppList"></div></div>';
+      if (games.length) html += '<div class="stCard"><h3>' + tt('recentGames') + '</h3><div id="recList"></div><button class="bigbtn dark" id="recMore" style="margin-top:8px;display:none">' + tt('showMore') + '</button></div>';
+      if (s.imports.length) html += '<div class="stCard"><h3>' + tt('importedGames') + '</h3><div id="impList"></div></div>';
+      html += '<div class="stBtns" style="display:flex;flex-direction:column;gap:10px;margin-top:4px"><button class="bigbtn" id="resetStatsBtn">' + tt(resetArmed ? 'resetConfirm' : 'resetStats') + '</button></div>';
+      body.innerHTML = html;
+      const ol = $('oppList');
+      if (ol) for (const e of opp) {
+        const b = Bots.byId(e.id), btn = document.createElement('button'); btn.className = 'recRow';
+        btn.innerHTML = Bots.avatar(b) + '<div class="rInfo">' + b.name + ' · ' + b.elo + '<small>' + tt('gamesCount', { n: e.n }) + ' · ' + e.w + ' ' + tt('wins') + ' · ' + e.d + ' ' + tt('draws') + ' · ' + e.l + ' ' + tt('losses') + '</small></div><span class="chev">›</span>';
+        btn.addEventListener('click', () => { soundClick(); statsBot = e.id; renderStats(); window.scrollTo(0, 0); });
+        ol.appendChild(btn);
+      }
+      const list = $('recList'), more = $('recMore');
+      const fillRecent = () => {
+        if (!list) return; list.innerHTML = '';
+        for (const r of games.slice(0, recLimit)) { const el = gameRowEl(r); if (el) list.appendChild(el); }
+        if (more) more.style.display = games.length > recLimit ? '' : 'none';
+      };
+      fillRecent();
+      if (more) more.addEventListener('click', () => { soundClick(); recLimit += 20; fillRecent(); });
+      const il = $('impList'); if (il) for (const r of s.imports) il.appendChild(importRowEl(r));
+      const rb = $('resetStatsBtn');
+      if (rb) rb.addEventListener('click', () => {
+        if (!resetArmed) { resetArmed = true; rb.textContent = tt('resetConfirm'); setTimeout(() => { resetArmed = false; if (rb.isConnected) rb.textContent = tt('resetStats'); }, 4000); return; }
+        resetArmed = false; stats = freshStats(); saveStats(); showToast(tt('resetDone')); renderStats(); renderHome();
+      });
     }
-    html += '<div class="stBtns" style="display:flex;flex-direction:column;gap:10px;margin-top:4px"><button class="bigbtn" id="resetStatsBtn">' + tt(resetArmed ? 'resetConfirm' : 'resetStats') + '</button></div>';
-    body.innerHTML = html;
     const sp = $('statsProfile'); if (sp) sp.addEventListener('click', () => { soundClick(); openProfile('statsScreen'); });
-    const list = $('recList');
-    if (list) for (const r of s.recent) {
-      const b = Bots.byId(r.bot); if (!b) continue;
-      const d = new Date(r.t);
-      const btn = document.createElement('button'); btn.className = 'recRow';
-      btn.innerHTML = Bots.avatar(b) + '<div class="rInfo">' + b.name + ' · ' + b.elo + '<small>' + d.toLocaleDateString(window._cvbLang === 'pt' ? 'pt-BR' : window._cvbLang) + ' · ' + tt(r.color === 'w' ? 'white' : 'black') + ' · ' + Math.ceil(r.moves.length / 2) + ' ' + tt('movesShort') + '</small></div>' +
-        '<span class="rRes ' + r.res + '">' + tt(r.res === 'w' ? 'resW' : r.res === 'd' ? 'resD' : 'resL') + '</span><span class="rDelta">' + fmtDelta(r.delta) + '</span><span class="chev">›</span>';
-      btn.addEventListener('click', () => openReview(r, 'statsScreen'));
-      list.appendChild(btn);
+    const sa = $('statsAnalyse'); if (sa) sa.addEventListener('click', () => { soundClick(); openImport('statsScreen'); });
+    const ab = $('statsAllBots'); if (ab) ab.addEventListener('click', () => { soundClick(); statsBot = null; renderStats(); window.scrollTo(0, 0); });
+    const pb = $('perBtn'), pm = $('perMenu');
+    if (pb && pm) {
+      pb.addEventListener('click', e => { e.stopPropagation(); const open = pm.style.display === 'none'; pm.style.display = open ? '' : 'none'; pb.setAttribute('aria-expanded', open); pb.classList.toggle('open', open); });
+      pm.querySelectorAll('.perItem').forEach(it => it.addEventListener('click', () => { soundClick(); statsPeriod = it.dataset.p; storageSet('statsPeriod', statsPeriod); recLimit = 10; renderStats(); }));
     }
-    const rb = $('resetStatsBtn');
-    if (rb) rb.addEventListener('click', () => {
-      if (!resetArmed) { resetArmed = true; rb.textContent = tt('resetConfirm'); setTimeout(() => { resetArmed = false; if (rb.isConnected) rb.textContent = tt('resetStats'); }, 4000); return; }
-      resetArmed = false; stats = freshStats(); saveStats(); showToast(tt('resetDone')); renderStats(); renderHome();
-    });
+  }
+  document.addEventListener('click', () => { const pm = $('perMenu'), pb = $('perBtn'); if (pm && pm.style.display !== 'none') { pm.style.display = 'none'; if (pb) { pb.classList.remove('open'); pb.setAttribute('aria-expanded', 'false'); } } });
+
+  // ── Analyse a game that was played elsewhere (PGN) ───────────────────────
+  let importFrom = 'statsScreen';
+  function openImport(from) { importFrom = from || 'statsScreen'; $('importErr').textContent = ''; showScreen('importScreen'); }
+  const STD_BOARD = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
+  // returns a game record (without analysis) or throws an i18n key
+  function parsePgnGame(text) {
+    text = String(text || '').replace(/^﻿/, '').replace(/\r\n?/g, '\n').trim();
+    if (!text) throw 'importErrPgn';
+    const first = text.split(/\n\s*\n(?=\[Event )/)[0];      // only the first game of a file with several games
+    const c = new Chess();
+    try { c.loadPgn(first); } catch (e) { throw 'importErrPgn'; }
+    const h = (c.getHeaders ? c.getHeaders() : c.header()) || {};
+    if (h.FEN && String(h.FEN).split(' ')[0] !== STD_BOARD) throw 'importErrFen';
+    const hist = c.history({ verbose: true });
+    if (!hist.length) throw 'importErrShort';
+    const moves = hist.map(m => m.from + m.to + (m.promotion || ''));
+    const clean = v => (v && v !== '?' ? String(v).slice(0, 40) : '');
+    const wName = clean(h.White), bName = clean(h.Black);
+    let rs = h.Result;
+    if (rs !== '1-0' && rs !== '0-1' && rs !== '1/2-1/2') rs = c.isCheckmate() ? (c.turn() === 'w' ? '0-1' : '1-0') : (c.isDraw() ? '1/2-1/2' : '*');
+    const elo = v => { const n = parseInt(v, 10); return n > 0 && n < 4000 ? n : null; };
+    // names of both players come from the file; the game is shown from White's side and both players are analysed
+    return { id: Date.now(), t: Date.now(), imported: true, color: 'w', res: 'u', score: rs, moves,
+      wName, bName, wElo: elo(h.WhiteElo), bElo: elo(h.BlackElo), myName: wName, oppName: bName };
+  }
+  function startImport() {
+    const err = $('importErr'); err.textContent = '';
+    let rec;
+    try { rec = parsePgnGame($('importText').value); }
+    catch (e) { err.textContent = tt(typeof e === 'string' ? e : 'importErrPgn'); return; }
+    // the same game again: reuse the stored one (and its analysis), but from the chosen side
+    const same = stats.imports.find(r => r.moves.join(' ') === rec.moves.join(' '));
+    if (same) { Object.assign(same, { color: rec.color, res: rec.res, score: rec.score, wName: rec.wName, bName: rec.bName, wElo: rec.wElo, bElo: rec.bElo, myName: rec.myName, oppName: rec.oppName }); stats.imports = [same].concat(stats.imports.filter(r => r !== same)); rec = same; }
+    else { stats.imports.unshift(rec); if (stats.imports.length > MAX_IMPORTS) stats.imports.length = MAX_IMPORTS; }
+    saveStats();
+    openReview(rec, 'statsScreen');
   }
 
   // ── Settings ─────────────────────────────────────────────────────────────
@@ -1407,7 +1604,7 @@
   function injectNav() {
     const mk = kind => { const b = document.createElement('button'); b.type = 'button'; b.className = 'smallbtn navBtn'; b.dataset.nav = kind; b.innerHTML = NAV_ICON[kind]; b.addEventListener('click', onNavClick); return b; };
     // pages with a title bar: a row of buttons under the title (as in Chess Tactics Gym)
-    const pages = { botsScreen: true, profileScreen: true, setupScreen: true, reviewScreen: true, settingsScreen: false, statsScreen: true, privacyScreen: true, aboutScreen: true };
+    const pages = { importScreen: true, botsScreen: true, profileScreen: true, setupScreen: true, reviewScreen: true, settingsScreen: false, statsScreen: true, privacyScreen: true, aboutScreen: true };
     for (const id of Object.keys(pages)) {
       const bar = document.querySelector('#' + id + ' .topbar'); if (!bar) continue;
       const row = document.createElement('div'); row.className = 'topbarBtns';
@@ -1430,7 +1627,12 @@
     $('langSel').addEventListener('change', e => { prefs.lang = e.target.value; savePrefs(); applyLanguage(prefs.lang); });
     $('continueBtn').addEventListener('click', () => { soundClick(); resumeGame(); });
     $('playBtn').addEventListener('click', () => { soundClick(); showScreen('botsScreen'); });
-    $('statsBtn').addEventListener('click', () => { soundClick(); showScreen('statsScreen'); });
+    $('statsBtn').addEventListener('click', () => { soundClick(); statsBot = null; showScreen('statsScreen'); });
+    $('analyseHomeBtn').addEventListener('click', () => { soundClick(); openImport('homeScreen'); });
+    $('importBack').addEventListener('click', () => backTo(importFrom));
+    $('importFileBtn').addEventListener('click', () => $('importFile').click());
+    $('importFile').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; if (!f) return; const fr = new FileReader(); fr.onload = () => { $('importText').value = String(fr.result || ''); $('importErr').textContent = ''; }; fr.onerror = () => { $('importErr').textContent = tt('importErrPgn'); }; fr.readAsText(f); e.target.value = ''; });
+    $('importGo').addEventListener('click', () => { soundClick(); startImport(); });
     $('settBtn').addEventListener('click', () => openSettings('homeScreen'));
     $('aboutHomeBtn').addEventListener('click', () => { aboutFrom = 'homeScreen'; showScreen('aboutScreen'); });
 
@@ -1467,7 +1669,7 @@
     $('mvLast').addEventListener('click', () => { soundClick(); exitView(); });
     $('moveTable').addEventListener('click', e => { const b = e.target.closest('button[data-k]'); if (b && G) viewTo(+b.dataset.k); });
     $('revLast').addEventListener('click', () => jumpTo(rv.rec.moves.length));
-    $('revFlip').addEventListener('click', () => { rv.flipped = !rv.flipped; rv.board.flip(); updateEvalBar(); });
+    $('revFlip').addEventListener('click', () => { rv.flipped = !rv.flipped; rv.board.flip(); updateEvalBar(); renderPlayerBars(); });
     $('revRematch').addEventListener('click', () => { const b = rv.bot, c = rv.rec.color; startNewGame(b.id, c === 'w' ? 'b' : 'w'); });
     $('revOther').addEventListener('click', () => showScreen('botsScreen'));
     const eg = $('evalGraph');
@@ -1512,7 +1714,7 @@
   async function init() {
     loadPrefs();
     loadProfile();
-    loadStats();
+    loadStats(); loadStatsPeriod();
     ChessCore.setPieceSet(prefs.pieceSet);
     ChessCore.setCoordMode(prefs.coordMode);
     loadSaved();
@@ -1525,7 +1727,7 @@
     renderHome();
     showScreen('homeScreen');
     setTimeout(() => { try { Engine.start(); } catch (e) {} }, 1200);     // warm the engine up while the menu is shown
-    window.__cvb = { get G() { return G; }, get stats() { return stats; }, get prefs() { return prefs; }, get saved() { return saved; }, get rv() { return rv; }, board: () => board, scoreGame, viewTo, exitView, openReview, startNewGame, endGame, refresh: () => updatePlayUI() };
+    window.__cvb = { get G() { return G; }, get stats() { return stats; }, get prefs() { return prefs; }, get saved() { return saved; }, get profile() { return profile; }, saveStats, get rv() { return rv; }, board: () => board, scoreGame, viewTo, exitView, openReview, startNewGame, endGame, refresh: () => updatePlayUI() };
   }
 
   document.addEventListener('DOMContentLoaded', init);

@@ -1,5 +1,5 @@
 // Bump CACHE on every release so old cached files are dropped.
-const CACHE = 'chessvsbots-v9';
+const CACHE = 'chessvsbots-v13';
 const ASSETS = [
   './',
   './index.html',
