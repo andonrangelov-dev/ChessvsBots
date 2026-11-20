@@ -1,11 +1,11 @@
 {
   "name": "chess-vs-bots",
   "private": true,
-  "version": "1.0.16",
+  "version": "1.0.18",
   "description": "Chess vs Bots - offline chess against 40 bots and 5 legends (Stockfish WASM), Capacitor 8. No ads, no purchases. GPL v3.",
   "scripts": {
     "ios:prepare": "node scripts/setup-native.mjs",
-    "web:check": "node --check www/game.js && node --check www/chess-core.js && node --check www/pieces-extra.js && node --check www/i18n.js && node --check www/engine.js && node --check www/accuracy.js && node --check www/review-classification.js && node --check www/avatars.js && node --check www/bots.js && node --check www/native-services.bundle.js && node --check www/review-arrows.js",
+    "web:check": "node --check www/game.js && node --check www/chess-core.js && node --check www/pieces-extra.js && node --check www/i18n.js && node --check www/engine.js && node --check www/accuracy.js && node --check www/review-classification.js && node --check www/avatars.js && node --check www/bots.js && node --check www/native-services.bundle.js && node --check www/review-arrows.js && node --check www/review-clocks.js",
     "native:bundle": "node scripts/bundle-native.mjs",
     "native:verify": "node scripts/verify-native-bundle.mjs",
     "native:test": "node scripts/test-native-services.mjs",
@@ -16,14 +16,16 @@
     "test:accuracy": "node scripts/test-accuracy.mjs",
     "test:engine": "node scripts/test-engine.mjs",
     "test:review": "node scripts/test-review-classification.mjs",
-    "test:arrows": "node scripts/test-review-arrows.mjs"
+    "test:arrows": "node scripts/test-review-arrows.mjs",
+    "test:clocks": "node scripts/test-review-clocks.mjs"
   },
   "dependencies": {
     "@capacitor/core": "8.5.3",
     "@capacitor/ios": "8.5.3",
     "@capacitor/status-bar": "8.0.4",
     "@capacitor/haptics": "8.0.2",
-    "@capacitor/share": "8.0.3"
+    "@capacitor/share": "8.0.3",
+    "capacitor-store-sheet": "file:native-plugins/store-sheet"
   },
   "devDependencies": {
     "@capacitor/cli": "8.5.3",

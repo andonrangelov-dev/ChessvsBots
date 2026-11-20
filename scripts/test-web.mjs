@@ -169,6 +169,9 @@ try {
     assert.ok(r1 > 800, 'win must raise the rating (got ' + r1 + ')');
     assert.equal(await page.evaluate(() => __cvb.stats.w), 1);
     await shot(page, '06_win');
+    // a flawless (3-star) win also gets the small puzzle suggestion; review of a clean game has none
+    assert.equal(await page.evaluate(() => __cvb.G.record.stars), 3);
+    assert.ok(await page.evaluate(() => document.getElementById('goTactics').offsetParent !== null), '3-star win: puzzle suggestion shown');
     ok('checkmate is detected; a win raises the rating');
 
     // review of the game
@@ -207,9 +210,16 @@ try {
     await tap(page, 'b8', 'c6'); await waitFor(page, () => __cvb.G.chess.history().length >= 5);
     await tap(page, 'g8', 'f6'); await waitFor(page, () => document.getElementById('gameOverlay').style.display === 'flex', 8000);
     assert.equal(await page.evaluate(() => __cvb.G.record.res), 'l');
+    // after a loss: one small puzzle suggestion on the result card, with its own campaign name
+    const goCta = await page.evaluate(() => { const a = document.getElementById('goTactics'); return { shown: a.offsetParent !== null, href: a.getAttribute('href'), txt: a.textContent }; });
+    assert.ok(goCta.shown && /ct=cvb_gameover/.test(goCta.href) && /Andon/.test(goCta.txt), 'game-over puzzle suggestion after a loss: ' + JSON.stringify(goCta));
+    await shot(page, '05b_gameover_loss_cta');
     await page.click('#goReview');
     await waitFor(page, () => document.getElementById('reviewBody').style.display !== 'none', 60000);
     const an = await page.evaluate(() => __cvb.rv.an);
+    // the review suggests puzzles because the game has mistakes/blunders
+    const revCta = await page.evaluate(() => { const a = document.querySelector('#revKey a.ctaCard'); return a ? { href: a.getAttribute('href'), txt: a.textContent } : null; });
+    assert.ok(revCta && /ct=cvb_review/.test(revCta.href) && /Tactics Gym/.test(revCta.txt), 'review puzzle suggestion');
     assert.ok(['mistake', 'blunder'].includes(an.cls[5]), 'Nf6?? must be a mistake/blunder, got ' + an.cls[5]);
     assert.ok(an.key.some(k => k.type === 'mistake' && k.ply === 5), 'the blunder must be a key moment');
     assert.ok(an.counts.blunder + an.counts.mistake >= 1);
@@ -242,6 +252,7 @@ try {
     await waitFor(page, () => document.getElementById('gameOverlay').style.display === 'flex', 8000);
     assert.equal(await page.evaluate(() => __cvb.G.record.reason), 'stalemate');
     assert.equal(await page.evaluate(() => __cvb.G.record.res), 'd');
+    assert.ok(await page.evaluate(() => document.getElementById('goTactics').offsetParent === null), 'draw: no puzzle suggestion');
     ok('stalemate is a draw');
     await page.click('#goHome');
 
@@ -289,12 +300,21 @@ try {
     // home: puzzle button opens the other game in a new tab
     const home = await page.evaluate(() => { const a = document.getElementById('homeTactics'); return { href: a.getAttribute('href'), target: a.target, rel: a.rel, shown: a.offsetParent !== null, text: a.textContent }; });
     assert.ok(home.shown && home.target === '_blank' && /noopener/.test(home.rel), 'tactics button on home');
-    assert.equal(home.href, await page.evaluate(() => window.TACTICS_URL), 'home link = TACTICS_URL');
+    const base = await page.evaluate(() => window.TACTICS_URL);
+    assert.equal(home.href, base + '?ct=cvb_home', 'home link = TACTICS_URL + campaign name');
     assert.ok(/Tactics Gym/.test(home.text));
-    // settings: same link
+    // settings: same app, its own campaign name
     await page.click('#settBtn');
     const sett = await page.evaluate(() => { const a = document.getElementById('settTactics'); return { href: a.getAttribute('href'), shown: a.offsetParent !== null }; });
-    assert.ok(sett.shown && sett.href === home.href, 'tactics link in settings');
+    assert.ok(sett.shown && sett.href === base + '?ct=cvb_settings', 'tactics link in settings');
+    // with a provider ID the links become full App Store campaign links (pt + ct + mt)
+    await page.evaluate(() => { window.TACTICS_PT = '1234567'; window.__cvb.applyTacticsLinks(); });
+    assert.equal(await page.evaluate(() => document.getElementById('homeTactics').getAttribute('href')), base + '?pt=1234567&ct=cvb_home&mt=8', 'campaign link with provider ID');
+    // Android build without a Google Play link: the buttons are hidden (an App Store link would not open there)
+    const android = await page.evaluate(() => { window.ChessNative.platform = 'android'; window.TACTICS_URL_ANDROID = ''; window.__cvb.applyTacticsLinks(); return document.getElementById('settTactics').style.display; });
+    assert.equal(android, 'none', 'hidden on Android without a Play link');
+    const play = await page.evaluate(() => { window.TACTICS_URL_ANDROID = 'https://play.google.com/store/apps/details?id=x.y'; return window.__cvb.tacticsUrl('cvb_home'); });
+    assert.ok(play.startsWith('https://play.google.com/store/apps/details?id=x.y&referrer=') && /utm_campaign%3Dcvb_home/.test(play), 'Play link with referrer: ' + play);
     // finishing games never shows anything ad-like
     await page.click('#settBack').catch(() => {});
     assert.deepEqual(page.errors.filter(e => !/Failed to load resource/.test(e)), []);
@@ -562,7 +582,7 @@ try {
     await page.context().close();
   }
 
-  // ── 14. accuracy: Lichess win% method with the decay and weighting calibrated to Chess.com (version 5) ──
+  // ── 14. accuracy: Lichess win% method with the decay, loss power and weighting calibrated to Chess.com (version 9) ──
   {
     const games = JSON.parse(readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'acc-games.json'), 'utf8'));
     const page = await newPage({});
@@ -571,13 +591,15 @@ try {
     const by = a => res.find(r => String(r.A) === String(a));
     const winCp = pct => -Math.log(100 / pct - 1) / 0.00368208;          // centipawns that give this win%
     const moveAcc = await page.evaluate(([c0]) => [2, 5, 10, 20].map(l => __cvb.scoreGame([0, c0[l]], ['x'], ['y'], { w: 1500, b: 1500 }).moves[0].score), [Object.fromEntries([2, 5, 10, 20].map(l => [l, winCp(50 - l)]))]);
-    const want = [2, 5, 10, 20].map(l => Math.min(100, 103.1668100711649 * Math.exp(-0.08 * l) - 3.166924740191411 + 1));
+    // accuracy model v9 (www/accuracy.js): DECAY 0.1010956, LOSS_POWER 1.0801004
+    const want = [2, 5, 10, 20].map(l => Math.min(100, 103.1668100711649 * Math.exp(-0.1010956 * Math.pow(l, 1.0801004)) - 3.166924740191411 + 1));
+    assert.equal(await page.evaluate(() => window.ChessAccuracy.version), 9, 'accuracy model version');
     moveAcc.forEach((v, i) => assert.ok(Math.abs(v - want[i]) < 0.05 && (i === 0 || v < moveAcc[i - 1]), 'move accuracy ' + v + ' vs ' + want[i]));
     // no loss of winning chances (even a gain) = 100
     assert.equal(await page.evaluate(() => __cvb.scoreGame([0, 200], ['x'], ['y'], { w: 1500, b: 1500 }).moves[0].score), 100);
     // weak play scores clearly lower than engine play; engine play stays high
-    assert.ok(by(250).w <= 60, 'bot 250 accuracy ' + by(250).w);
-    assert.ok(by(510).w <= 70, 'bot 510 accuracy ' + by(510).w);
+    assert.ok(by(250).w <= 75, 'bot 250 accuracy ' + by(250).w);
+    assert.ok(by(510).w <= 78, 'bot 510 accuracy ' + by(510).w);
     assert.ok(by(2800).w >= 70 && by(2800).b >= 80, 'engine vs engine ' + by(2800).w + '/' + by(2800).b);
     assert.ok(by(250).w + 15 < by(2800).w, 'weak << engine');
     // 100 only when every move is the engine move
@@ -586,14 +608,15 @@ try {
     assert.deepEqual(perfect, [100, 100]);
     // classes: custom Chess vs Bots Win%-loss bands (fitted to the Chess.com counts)
     const cls = await page.evaluate(() => [0, 10, 30, 60, 120, 250, 900].map(l => __cvb.scoreGame([0, -l], ['x'], ['y'], { w: 1500, b: 1500 }).moves[0].cls));
-    assert.deepEqual(cls, ['excellent', 'excellent', 'good', 'inacc', 'mistake', 'blunder', 'blunder'], 'class bands: ' + cls.join(','));
+    // v1.0.14 bands: Excellent <=1.8, Good <=3.9, Inaccuracy <=6.5, Mistake <=30 Win% points, otherwise Blunder
+    assert.deepEqual(cls, ['excellent', 'excellent', 'good', 'inacc', 'mistake', 'mistake', 'blunder'], 'class bands: ' + cls.join(','));
     // only the engine's own move is called Best
     assert.equal(await page.evaluate(() => __cvb.scoreGame([300, 295], ['x'], ['x']).moves[0].cls), 'best');
     // evaluations of won positions that jump around (mate <-> +9 pawns) are no longer counted as blunders
     const jump = await page.evaluate(() => __cvb.scoreGame([800, 9990, 880, 9990], ['x', 'y', 'z'], []).moves.map(m => m.cls));
     assert.ok(jump.every(c => c === 'excellent'), 'jumpy decided evaluations: ' + jump.join(','));
     console.log('    accuracy by strength:', res.map(r => r.A + ':' + r.w + '/' + r.C + ':' + r.b).join('  '));
-    ok('accuracy: Lichess Win% + Chess.com-calibrated decay (2/5/10/20 points lost = ' + moveAcc.map(v => v.toFixed(1)).join('/') + '), perfect play = 100, class bands 1.5/3.5/7/14, no blunders from evaluation noise in decided positions');
+    ok('accuracy v9: Lichess Win% + Chess.com-calibrated decay (2/5/10/20 points lost = ' + moveAcc.map(v => v.toFixed(1)).join('/') + '), perfect play = 100, class bands 1.8/3.9/6.5/30, no blunders from evaluation noise in decided positions');
     await page.context().close();
   }
 
@@ -630,7 +653,7 @@ try {
       await page.addInitScript(t => localStorage.setItem('chessvsbots_prefs', JSON.stringify({ theme: t })), theme);
       await page.goto(URL_); await page.waitForTimeout(400);
       const hl = await page.evaluate(() => { const a = document.getElementById('homeTactics'); const cs = getComputedStyle(a); return { href: a.getAttribute('href'), color: cs.color, bg: cs.backgroundColor }; });
-      assert.equal(hl.href, URL_TACTICS, 'home link');
+      assert.equal(hl.href, URL_TACTICS + '?ct=cvb_home', 'home link');
       assert.equal(hl.color, 'rgb(255, 255, 255)', theme + ': the puzzle button text is white (not the purple of a visited link)');
       assert.ok(!/rgba\(0, 0, 0, 0\)/.test(hl.bg), theme + ': the puzzle button has a solid background');
       await shot(page, '16_home_' + theme);

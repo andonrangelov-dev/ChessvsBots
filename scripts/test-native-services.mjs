@@ -6,13 +6,14 @@ import vm from 'node:vm';
 const source = readFileSync('src/native-services.js', 'utf8').replace(/^import .*;\s*$/gm, '');
 assert.ok(!/AdMob|NativePurchases|interstitial/i.test(source), 'no ads / purchases in the source');
 
-function boot(native) {
-  const calls = { haptics: [], style: [], share: [] };
+function boot(native, opts = {}) {
+  const calls = { haptics: [], style: [], share: [], store: [] };
   const win = { };
   const ctx = {
     window: win, console, setTimeout, clearTimeout, Promise,
     navigator: { vibrate: ms => calls.haptics.push(['web', ms]) },
-    Capacitor: { isNativePlatform: () => native },
+    Capacitor: { isNativePlatform: () => native, getPlatform: () => opts.platform || (native ? 'ios' : 'web'), isPluginAvailable: n => n === 'StoreSheet' && opts.storeSheet !== false },
+    registerPlugin: name => name === 'StoreSheet' ? { open: async o => { calls.store.push(o); if (opts.storeFails) throw new Error('not loaded'); } } : {},
     StatusBar: { setStyle: async o => { calls.style.push(o.style); } },
     Style: { Dark: 'DARK', Light: 'LIGHT' },
     Haptics: { impact: async o => calls.haptics.push(['impact', o.style]), notification: async o => calls.haptics.push(['note', o.type]) },
@@ -46,4 +47,20 @@ function boot(native) {
   await N.share({ title: 'T', text: 'x', url: 'u' });
   assert.equal(calls.share.length, 1);
 }
-console.log('PASS: native bridge contract tests (haptics, status bar, share; no ads).');
+// In-app App Store page of Chess Tactics Gym (iOS only); everywhere else the caller opens the link normally
+{
+  const web = boot(false);
+  assert.equal(await web.N.openStore({ appId: '6830729167' }), false);
+  assert.equal(web.calls.store.length, 0);
+  const ios = boot(true);
+  assert.equal(ios.N.platform, 'ios');
+  assert.equal(await ios.N.openStore({ appId: '6830729167', providerToken: '123', campaignToken: 'cvb_home' }), true);
+  assert.deepEqual(JSON.parse(JSON.stringify(ios.calls.store[0])), { appId: '6830729167', providerToken: '123', campaignToken: 'cvb_home' });
+  assert.equal(await ios.N.openStore({ appId: 'abc' }), false, 'non-numeric id is refused');
+  assert.equal(await boot(true, { storeFails: true }).N.openStore({ appId: '1' }), false, 'load error -> fallback');
+  assert.equal(await boot(true, { storeSheet: false }).N.openStore({ appId: '1' }), false, 'old build without plugin -> fallback');
+  const android = boot(true, { platform: 'android' });
+  assert.equal(await android.N.openStore({ appId: '1' }), false);
+  assert.equal(android.calls.store.length, 0);
+}
+console.log('PASS: native bridge contract tests (haptics, status bar, share, in-app App Store page; no ads).');

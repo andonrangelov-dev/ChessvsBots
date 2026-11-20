@@ -1,0 +1,11 @@
+{
+  "name": "capacitor-store-sheet",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Chess vs Bots local Capacitor plugin: shows the App Store page of our other app inside the app (SKStoreProductViewController). No purchases, no tracking.",
+  "license": "GPL-3.0-or-later",
+  "files": ["ios/", "CapacitorStoreSheet.podspec"],
+  "capacitor": {
+    "ios": { "src": "ios" }
+  }
+}

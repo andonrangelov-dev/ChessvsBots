@@ -7,6 +7,8 @@ Offline chess against 40 bot characters from 40 countries (about 250 to 2800 Elo
 ## Features
 - 40 bots (drawn people from 40 countries; groups Beginner, Intermediate, Advanced, Master; weakest is Andon from Bulgaria) with name, flag, rating, style and a short text under the picture (greeting in their own language + description in the app language). A fifth group, **Top players**: drawn caricatures of Paul Morphy, Emanuel Lasker, Mikhail Tal, José Raúl Capablanca and Alexander Alekhine (2675–2825) with a factual biography. Win stars: 3 with no hints and no undo, 2 with up to 3 hints, 1 with more hints or undo. From 1320 Elo up: Stockfish `UCI_LimitStrength` + `UCI_Elo`. Below 1320: Skill Level 0, depth 1 and human-like slips (calibrated so a stronger bot beats a weaker one).
 - Choose white / black / random, undo, hint, resign, draw offer, game in progress is saved.
+- **v1.0.17 (website build):** remaining time from PGN `[%clk]` annotations next to the player names in Game Review, kept on import/export; arrow fixes.
+- **v1.0.18:** context-aware links to Chess Tactics Gym (game over, review), campaign tracking via App Store Connect, in-app App Store page on iOS, better iPad landscape layout. See `CHANGES_V118_BG.md`.
 - **v1.0.16:** category-coloured review arrows for the played move plus a green Stockfish suggestion only when appropriate (never duplicate; Brilliant/Great suppress the green suggestion). Recalibrated accuracy model v9 against a diverse Stockfish-evaluated subset of 629/2648 distinct user-supplied games: on the entirely held-out profile, 20ms accuracy MAE fell 4.083→3.920 pp (135 games), and on a 6-game 350ms holdout 3.963→3.761 pp. Old 6-game deep validation slightly regresses; see `CHANGES_V116_BG.md`. Source contains reproducible calibration tools but NO new raw PGN/target datasets.
 - **v1.0.15:** refined **Accuracy percentages** using 189 user-provided Chess.com PGN games with both official public accuracy values (378 player scores), 144 training / 45 held-out test games. All were evaluated with the app's Stockfish WASM at 20 ms/position; a 12-game stratified subset also ran at the real 350 ms review budget (6 train / 6 hold-out). On held-out examples, MAE decreased from 5.84 to **3.90** percentage points at 20 ms and from 5.79 to **2.92** at 350 ms (the latter only 12 player scores). Accuracy model v9 changes decay to 0.1073 and volatility weighting to 38%. This is a fit to available reference examples, NOT Chess.com CAPS2. **Brilliant/Great and all move-category rules remain as in v1.0.14:** the public API provides game percentages but not per-move category labels. Cached analyses re-run automatically. Full results / caveats in `CHANGES_V115_BG.md`; offline calibration scripts in `scripts/`, private game datasets omitted from distribution.
 - **v1.0.14:** calibrated with 31 matching Chess.com screenshot/PGN pairs (62 player scores), with revised Accuracy weighting, per-move score thresholds and more selective Great/Blunder labels. Detailed measurements: `CHANGES_V114_BG.md`. The app has eight Chess.com-inspired move groups in Game Review (Brilliant/Great added; Book merged into Best; Miss into Mistake) for games against bots **and imported PGNs**. Conservative piece-sacrifice and only-good-move checks, 31 commonly played opening lines for limited Book recognition, improved comparison with engine PV. Uses a revised empirically fitted accuracy curve (on 31 user-supplied pairs, mean absolute difference ~3.3 percentage points on the same data; this is calibration error, not independent validation); it is **not** Chess.com CAPS2. Cached reviews re-run once because classifications have changed.
@@ -16,11 +18,12 @@ Offline chess against 40 bot characters from 40 countries (about 250 to 2800 Elo
 - Player rating (start 800, Elo-like) that grows with wins; hints/undo halve the gain.
 - Board themes, piece sets, coordinates, flip board, dark/light mode, sound + vibration.
 - 8 languages: EN, DE, FR, ES, IT, PT-BR, NL, BG.
-- **No ads, no purchases, no tracking.** One button (home screen and Settings) opens the puzzle game Chess Tactics Gym (`window.TACTICS_URL` in `www/privacy-config.js`). Every page has Home / Settings / Full view buttons; the layout adapts to iPad and large screens (bigger board, side-by-side layout in landscape). The home-screen board shows the last game with its last move.
+- **No ads, no purchases, no tracking.** Buttons on the home screen and in Settings, plus context-aware suggestions after a game and in the review, open the puzzle game Chess Tactics Gym (`window.TACTICS_URL` in `www/privacy-config.js`). Every page has Home / Settings / Full view buttons; the layout adapts to iPad and large screens (bigger board, side-by-side layout in landscape). The home-screen board shows the last game with its last move.
 
 ## Layout
 - `www/` — the whole web app (also the Netlify site; `index.html` at the top). `www/engine/` — Stockfish WASM.
-- `src/native-services.js` + `scripts/` — native bridge (haptics, status bar, share) and build/verify scripts.
+- `src/native-services.js` + `scripts/` — native bridge (haptics, status bar, share, in-app App Store page) and build/verify scripts.
+- `native-plugins/store-sheet/` — local Capacitor iOS plugin (SKStoreProductViewController), installed by `npm ci` and added to the iOS project by `cap sync`.
 - `codemagic.yaml` — `chess-testflight` and `chess-appstore-production` (the production build fails while SOURCE_URL / TACTICS_URL / the contact e-mail are placeholders).
 - `tools/build_privacy.js` — generates `www/privacy.html` and `www/support.html`; `tools/icon/make_icons.py` — all icons.
 
@@ -35,6 +38,12 @@ npm run ios:prepare     # creates the iOS project (on the Codemagic Mac)
 Local web test: serve `www/` over HTTP (a Worker and WASM need http, not file://).
 
 Bundle ID `com.chessvsbots.app`.
+
+## Changes in 1.0.18
+- Built on v1.0.17 from the website (PGN clocks in Game Review via `www/review-clocks.js`, arrow colour always matches the visible label, no duplicate arrows, build label and `?v=` script cache keys), which was not yet on GitHub; `npm run test:clocks` added.
+- **Chess Tactics Gym funnel:** one small, context-aware suggestion on the game-over card (after a loss or a 3-star win) and a card in Game Review when the player made mistakes/blunders. Every link carries a campaign name (`cvb_home`, `cvb_settings`, `cvb_gameover`, `cvb_review`); set `TACTICS_PT` in `www/privacy-config.js` to get App Store campaign links (App Analytics, no data collected by this app).
+- **In-app App Store page (iOS):** local Capacitor plugin `native-plugins/store-sheet` (SKStoreProductViewController), falls back to the normal link. `TACTICS_URL_ANDROID` for a future Android build (buttons hidden on Android while empty).
+- iPad landscape: bigger board and controls, move table in its own card. Stale accuracy web test updated to model v9. Production builds check that the public repository has tag `v<version>` (GPL v3). Codemagic reads the version from `package.json`. Details: `CHANGES_V118_BG.md`.
 
 ## Changes in 1.0.16
 

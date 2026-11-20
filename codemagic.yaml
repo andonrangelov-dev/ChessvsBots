@@ -1,7 +1,10 @@
 # Chess vs Bots: two workflows.
 #  chess-testflight  = test build (checks only warn about placeholders).
 #  chess-appstore-production = App Store build; fails while SOURCE_URL / TACTICS_URL / contact e-mail in www/privacy-config.js are placeholders.
-#  The app has no ads, no purchases and no tracking, so no AdMob / StoreKit setup is needed.
+#  The app has no ads, no purchases and no tracking, so no AdMob / in-app purchase setup is needed.
+#  The local plugin native-plugins/store-sheet (installed by npm ci, added by cap sync) only shows the App Store page
+#  of Chess Tactics Gym inside the app; it needs no capability or entitlement.
+#  The version (CFBundleShortVersionString) is read from package.json.
 workflows:
   chess-testflight:
     name: Chess vs Bots - iOS TestFlight
@@ -27,6 +30,8 @@ workflows:
           npm run web:check
           npm run test:accuracy
           npm run test:review
+          npm run test:clocks
+          npm run test:arrows
           npm run test:engine
           npm run native:verify
           npm run release:verify
@@ -35,7 +40,8 @@ workflows:
         script: |
           npm run ios:prepare
           /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Chess vs Bots" ios/App/App/Info.plist || /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string Chess vs Bots" ios/App/App/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.16" ios/App/App/Info.plist || true
+          APP_VERSION=$(node -p "require('./package.json').version")
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $APP_VERSION" ios/App/App/Info.plist || true
       - name: Apply Apple signing files
         script: xcode-project use-profiles
       - name: Update iOS build number
@@ -77,6 +83,8 @@ workflows:
           npm run web:check
           npm run test:accuracy
           npm run test:review
+          npm run test:clocks
+          npm run test:arrows
           npm run test:engine
           npm run native:verify
           npm run release:verify
@@ -85,7 +93,8 @@ workflows:
         script: |
           npm run ios:prepare
           /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Chess vs Bots" ios/App/App/Info.plist || /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string Chess vs Bots" ios/App/App/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.16" ios/App/App/Info.plist || true
+          APP_VERSION=$(node -p "require('./package.json').version")
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $APP_VERSION" ios/App/App/Info.plist || true
       - name: Apply Apple signing files
         script: xcode-project use-profiles
       - name: Update iOS build number
