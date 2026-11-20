@@ -1072,7 +1072,7 @@ try {
     const r = await page.evaluate(() => {
       const st = __cvb.stats, bot = Bots.list[3].id, mv = [];
       const c = new Chess(); while (mv.length < 90) { const m = c.moves({ verbose: true }); if (!m.length || c.isGameOver()) break; const x = m[mv.length % m.length]; c.move(x); mv.push(x.from + x.to + (x.promotion || '')); }
-      const an = () => ({ version: 5, pov: mv.map((_, i) => i * 7 - 300).concat([0]), best: mv.slice(), cls: mv.map(() => 'good'), drop: mv.map(() => 1.5), gap: mv.map(() => 3.2), acc: { you: 80, bot: 70 }, counts: { best: 1, excellent: 2, good: 3, inacc: 0, mistake: 0, blunder: 0 }, countsOpp: { best: 1, excellent: 2, good: 3, inacc: 0, mistake: 0, blunder: 0 }, key: [], keyOpp: [] });
+      const an = () => ({ version: 7, pov: mv.map((_, i) => i * 7 - 300).concat([0]), best: mv.slice(), cls: mv.map(() => 'good'), drop: mv.map(() => 1.5), gap: mv.map(() => 3.2), acc: { you: 80, bot: 70 }, counts: { best: 1, excellent: 2, good: 3, inacc: 0, mistake: 0, blunder: 0 }, countsOpp: { best: 1, excellent: 2, good: 3, inacc: 0, mistake: 0, blunder: 0 }, key: [], keyOpp: [] });
       st.recent = []; st.imports = [];
       for (let i = 0; i < 1000; i++) st.recent.push({ id: i, t: 1e12 - i * 1000, bot, color: 'w', res: 'w', reason: 'checkmate', delta: 5, after: 1000, moves: mv, assisted: false, stars: 3, an: an() });
       const before = JSON.stringify(st).length;

@@ -26,6 +26,7 @@ workflows:
           npm run native:bundle
           npm run web:check
           npm run test:accuracy
+          npm run test:review
           npm run test:engine
           npm run native:verify
           npm run release:verify
@@ -34,7 +35,7 @@ workflows:
         script: |
           npm run ios:prepare
           /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Chess vs Bots" ios/App/App/Info.plist || /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string Chess vs Bots" ios/App/App/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.11" ios/App/App/Info.plist || true
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.16" ios/App/App/Info.plist || true
       - name: Apply Apple signing files
         script: xcode-project use-profiles
       - name: Update iOS build number
@@ -75,6 +76,7 @@ workflows:
           npm run native:bundle
           npm run web:check
           npm run test:accuracy
+          npm run test:review
           npm run test:engine
           npm run native:verify
           npm run release:verify
@@ -83,7 +85,7 @@ workflows:
         script: |
           npm run ios:prepare
           /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Chess vs Bots" ios/App/App/Info.plist || /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string Chess vs Bots" ios/App/App/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.11" ios/App/App/Info.plist || true
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.16" ios/App/App/Info.plist || true
       - name: Apply Apple signing files
         script: xcode-project use-profiles
       - name: Update iOS build number
