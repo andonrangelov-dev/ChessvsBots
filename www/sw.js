@@ -1,5 +1,5 @@
 // Bump CACHE on every release so old cached files are dropped.
-const CACHE = 'chessvsbots-v13';
+const CACHE = 'chessvsbots-v18';
 const ASSETS = [
   './',
   './index.html',
@@ -14,6 +14,8 @@ const ASSETS = [
   './engine/stockfish-19-lite-single.wasm',
   './chess-core.js',
   './accuracy.js',
+  './review-classification.js',
+  './review-arrows.js',
   './game.js',
   './native-services.bundle.js',
   './privacy.html',

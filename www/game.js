@@ -979,12 +979,13 @@
   }
 
   // ── Review (analysis after the game) ─────────────────────────────────────
-  // Full Lichess-based Accuracy calculation lives in accuracy.js. It is
-  // independent of bot rating; both players use the same Stockfish evaluations.
-  // Move quality labels use our own fixed Win%-loss bands, not Chess.com CAPS2.
+  // Accuracy is calibrated on Chess.com reference games in accuracy.js.
+  // Classification V2-inspired special labels and book approximation live in
+  // review-classification.js. Both remain independent of any network access.
   const { winPct, scoreGame } = window.ChessAccuracy;
+  const reviewClass = window.ChessReviewClassification;
   const ACCURACY_VERSION = window.ChessAccuracy.version;
-  const CLS_COLOR = { best: 'var(--q-best)', excellent: 'var(--q-exc)', good: 'var(--q-good)', inacc: 'var(--q-inacc)', mistake: 'var(--q-mistake)', blunder: 'var(--q-blunder)' };
+  const CLS_COLOR = { brilliant: 'var(--q-brill)', great: 'var(--q-great)', best: 'var(--q-best)', excellent: 'var(--q-exc)', good: 'var(--q-good)', inacc: 'var(--q-inacc)', mistake: 'var(--q-mistake)', blunder: 'var(--q-blunder)' };
   let rv = null;                 // { rec, an, ply, chess, board, flipped }
   let reviewFrom = 'homeScreen';
   let reviewToken = 0;
@@ -1096,22 +1097,41 @@
     const userSide = rec.color, botSide = userSide === 'w' ? 'b' : 'w';
     // a move that gives checkmate is always the best move, whatever the engine listed first
     mvs.forEach((m, i) => { if (m.san.indexOf('#') > 0) best[i] = rec.moves[i]; });
-    const sg = scoreGame(pov, rec.moves, best);
+    // Chess.com treats book theory differently from ordinary engine search.
+    // The 31 verified common lines are credited as correct moves for Accuracy,
+    // but the actual Stockfish PV is preserved for the green arrow.
+    const creditedBest = best.map((u, i) => reviewClass.openingBookPly(rec.moves, i) ? rec.moves[i] : u);
+    const sg = scoreGame(pov, rec.moves, creditedBest);
     const cls = [], drop = [], gap = [];
-    const counts = { best: 0, excellent: 0, good: 0, inacc: 0, mistake: 0, blunder: 0 }, countsOpp = Object.assign({}, counts);
+    const counts = { brilliant: 0, great: 0, best: 0, excellent: 0, good: 0, inacc: 0, mistake: 0, blunder: 0 }, countsOpp = Object.assign({}, counts);
     for (let i = 0; i < n; i++) {
       const mover = mvs[i].color, r = sg.moves[i];
       const before = mover === 'w' ? pov[i] : -pov[i];
       drop[i] = Math.round(r.loss * 10) / 10;                         // Lichess Win% lost, percentage points
-      cls[i] = r.cls;
-      // gap between the best and the second best move (how "only" the best move was), from the mover's point of view
+      // gap between the top two alternatives according to the SAME engine
+      // search, in winning-chance points. Used to spot a uniquely strong move.
       gap[i] = (second[i] != null && best[i]) ? Math.round(Math.max(0, winPct(before) - winPct(second[i])) * 10) / 10 : 0;
-      (mover === userSide ? counts : countsOpp)[r.cls]++;
+      const after = mover === 'w' ? pov[i + 1] : -pov[i + 1];
+      const prev = i ? (mover === 'w' ? pov[i - 1] : -pov[i - 1]) : null;
+      const userRating = rec.imported ? (userSide === 'w' ? rec.wElo : rec.bElo)
+        : ((Number.isFinite(rec.after) && Number.isFinite(rec.delta)) ? rec.after - rec.delta : stats.rating);
+      const opponentRating = rec.imported ? (botSide === 'w' ? rec.wElo : rec.bElo) : rec.bot && Bots.byId(rec.bot)?.elo;
+      const rating = Number(mover === userSide ? userRating : opponentRating) || 1500;
+      const position = new Chess(fens[i]);
+      cls[i] = reviewClass.classify({
+        base: r.cls, isBest: best[i] === rec.moves[i], loss: r.loss,
+        fen: fens[i], Chess, side: mover, played: rec.moves[i], reply: best[i + 1],
+        legalCount: position.moves().length, book: reviewClass.openingBookPly(rec.moves, i),
+        gap: gap[i], rating, checkmate: mvs[i].san.includes('#'),
+        expectedBefore: winPct(before), expectedAfter: winPct(after),
+        expectedPrev: prev == null ? null : winPct(prev)
+      });
+      (mover === userSide ? counts : countsOpp)[cls[i]]++;
     }
     // No turns by a player means no Accuracy sample (not a 0%-accuracy game).
     const turns = { w: 0, b: 0 };
     mvs.forEach(m => turns[m.color]++);
-    const acc = { you: turns[userSide] ? Math.round(sg[userSide]) : null, bot: turns[botSide] ? Math.round(sg[botSide]) : null };
+    const acc = { you: turns[userSide] ? Math.round(sg[userSide] * 10) / 10 : null, bot: turns[botSide] ? Math.round(sg[botSide] * 10) / 10 : null };
     // key moments of one side: its biggest mistakes and its best move
     const keyOf = side => {
       const mine = [];
@@ -1123,8 +1143,8 @@
       let bi = -1, bg = -1;
       for (const i of mine) {
         const isMate = mvs[i].san.indexOf('#') > 0;
-        if (cls[i] !== 'best' && !isMate) continue;
-        const g = isMate ? 100 : gap[i];
+        if (!['best', 'great', 'brilliant'].includes(cls[i]) && !isMate) continue;
+        const g = cls[i] === 'brilliant' ? 300 : cls[i] === 'great' ? 200 + gap[i] : isMate ? 100 : gap[i];
         if (g > bg) { bg = g; bi = i; }
       }
       if (bi >= 0) key.push({ type: 'best', ply: bi });
@@ -1145,15 +1165,13 @@
     b.setChess(c);
     b.setOrientation((rec.color === 'w') !== rv.flipped ? 'white' : 'black');
     if (k > 0) { const u = uciParts(rec.moves[k - 1]); b.setLast(u.from, u.to); }
-    const arrows = [];
+    // One category-coloured arrow for the played move. Add the green Stockfish
+    // best-move arrow only if it is a DIFFERENT move and the played move was
+    // neither Brilliant nor Great. Works for both players and imported PGNs.
     const an = rv.an;
-    if (an && k > 0) {
-      const i = k - 1, mover = (i % 2 === 0) ? 'w' : 'b';
-      if (mover === rec.color && (an.cls[i] === 'inacc' || an.cls[i] === 'mistake' || an.cls[i] === 'blunder') && an.best[i]) {
-        const p = uciParts(an.best[i]); arrows.push({ from: p.from, to: p.to, color: '#3fbf8f' });
-        const q = uciParts(rec.moves[i]); arrows.push({ from: q.from, to: q.to, color: '#ef5b5b', opacity: 0.7 });
-      }
-    }
+    const arrows = an && k > 0
+      ? window.ChessReviewArrows.forMove(rec.moves[k - 1], an.best && an.best[k - 1], an.cls[k - 1])
+      : [];
     b.setArrows(arrows);
     renderReviewLabel();
     highlightReviewMove();
@@ -1170,7 +1188,7 @@
     if (k === 0) { el.innerHTML = tt('startPos'); return; }
     const i = k - 1;
     const num = Math.floor(i / 2) + 1, dots = i % 2 === 0 ? '.' : '…';
-    const cname = { best: 'cBest', excellent: 'cExcellent', good: 'cGood', inacc: 'cInacc', mistake: 'cMistake', blunder: 'cBlunder' }[an.cls[i]];
+    const cname = { brilliant: 'cBrilliant', great: 'cGreat', best: 'cBest', excellent: 'cExcellent', good: 'cGood', inacc: 'cInacc', mistake: 'cMistake', blunder: 'cBlunder' }[an.cls[i]];
     const who = ((i % 2 === 0) ? 'w' : 'b') === rv.rec.color ? (rv.rec.imported ? impNames(rv.rec)[rv.rec.color] : tt('you')) : rv.bot.name;
     let html = '<b>' + num + dots + ' ' + sanAt(i) + '</b> · ' + who + '<span class="tag" style="background:' + CLS_COLOR[an.cls[i]] + '">' + tt(cname) + '</span>';
     if ((an.cls[i] === 'inacc' || an.cls[i] === 'mistake' || an.cls[i] === 'blunder') && an.best[i]) html += '<br>' + tt('betterWas', { san: bestSanAt(i) });
@@ -1198,23 +1216,25 @@
     $('revOther').style.display = rec.imported ? 'none' : '';
     renderPlayerBars();
     $('revTiles').innerHTML =
-      '<div class="tile"><b>' + (an.acc.you == null ? '—' : an.acc.you + '%') + '</b><span>' + (rec.imported ? tt('accBot', { bot: esc(impNames(rec)[rec.color]) }) : tt('accYou')) + '</span></div>' +
-      '<div class="tile"><b>' + (an.acc.bot == null ? '—' : an.acc.bot + '%') + '</b><span>' + tt('accBot', { bot: esc(bot.name) }) + '</span></div>';
+      '<div class="tile"><b>' + (an.acc.you == null ? '—' : Number(an.acc.you).toFixed(1) + '%') + '</b><span>' + (rec.imported ? tt('accBot', { bot: esc(impNames(rec)[rec.color]) }) : tt('accYou')) + '</span></div>' +
+      '<div class="tile"><b>' + (an.acc.bot == null ? '—' : Number(an.acc.bot).toFixed(1) + '%') + '</b><span>' + tt('accBot', { bot: esc(bot.name) }) + '</span></div>';
     // key moments and move counts of both players
     const key = $('revKey'); key.innerHTML = '';
     const cell = (n, k, nm) => '<div><b style="color:' + CLS_COLOR[k] + '">' + n + '</b><span>' + tt(nm) + '</span></div>';
     const countsCard = (title, c) => {
       const el = document.createElement('div'); el.className = 'keyCard';
-      c = c || { best: 0, excellent: 0, good: 0, inacc: 0, mistake: 0, blunder: 0 };
-      el.innerHTML = '<div class="kIco">📊</div><div class="kTxt"><b>' + title + '</b><div class="cntRow">' +
-        cell(c.best, 'best', 'cBest') + cell(c.excellent || 0, 'excellent', 'cExcellent') + cell(c.good, 'good', 'cGood') + cell(c.inacc, 'inacc', 'cInacc') + cell(c.mistake, 'mistake', 'cMistake') + cell(c.blunder, 'blunder', 'cBlunder') + '</div></div>';
+      c = c || { brilliant: 0, great: 0, best: 0, excellent: 0, good: 0, inacc: 0, mistake: 0, blunder: 0 };
+      el.innerHTML = '<div class="kTxt"><b>' + title + '</b><div class="cntRow">' +
+        cell(c.brilliant || 0, 'brilliant', 'cBrilliant') + cell(c.great || 0, 'great', 'cGreat') + cell(c.best, 'best', 'cBest') + cell(c.excellent || 0, 'excellent', 'cExcellent') + cell(c.good, 'good', 'cGood') + cell(c.inacc, 'inacc', 'cInacc') + cell(c.mistake, 'mistake', 'cMistake') + cell(c.blunder, 'blunder', 'cBlunder') + '</div></div>';
       return el;
     };
     const keyCards = (keys, prefix) => {
       const mistakes = keys.filter(k => k.type === 'mistake'), bestK = keys.find(k => k.type === 'best');
       if (bestK) {
         const b = document.createElement('button'); b.className = 'keyCard';
-        b.innerHTML = '<div class="kIco">⭐</div><div class="kTxt"><b>' + prefix + tt(prefix ? 'bestMoveNeutral' : 'bestMoveTitle') + '</b><span>' + (Math.floor(bestK.ply / 2) + 1) + (bestK.ply % 2 === 0 ? '. ' : '… ') + sanAt(bestK.ply) + '</span></div><span class="chev">›</span>';
+        const bestCls = an.cls[bestK.ply];
+        const keyTitle = bestCls === 'brilliant' ? tt('cBrilliant') : bestCls === 'great' ? tt('cGreat') : tt(prefix ? 'bestMoveNeutral' : 'bestMoveTitle');
+        b.innerHTML = '<div class="kIco">' + (bestCls === 'brilliant' ? '💎' : bestCls === 'great' ? '✨' : '⭐') + '</div><div class="kTxt"><b>' + prefix + keyTitle + '</b><span>' + (Math.floor(bestK.ply / 2) + 1) + (bestK.ply % 2 === 0 ? '. ' : '… ') + sanAt(bestK.ply) + '</span></div><span class="chev">›</span>';
         b.addEventListener('click', () => { jumpTo(bestK.ply + 1); scrollToBoard(); });
         key.appendChild(b);
       }
@@ -1258,6 +1278,57 @@
     }
     jumpTo(rv.ply);
   }
+  // Export is always generated from the complete game record (not the current review ply).
+  // This also supports externally imported PGNs, including their original players and result.
+  function reviewPgn() {
+    if (!rv || !rv.rec) return '';
+    const rec = rv.rec, ch = new Chess();
+    const names = rec.imported ? impNames(rec) : {
+      w: rec.color === 'w' ? profName() : rv.bot.name,
+      b: rec.color === 'b' ? profName() : rv.bot.name
+    };
+    const result = rec.imported ? (rec.score || '*') :
+      rec.res === 'd' ? '1/2-1/2' : rec.res === 'w' ? (rec.color === 'w' ? '1-0' : '0-1') :
+      rec.res === 'l' ? (rec.color === 'w' ? '0-1' : '1-0') : '*';
+    const safe = v => String(v == null ? '' : v).replace(/[\"\\\r\n]/g, ' ').slice(0, 100);
+    ch.header('Event', rec.imported ? 'Imported chess game' : 'Chess vs Bots',
+      'Site', 'Chess vs Bots', 'Date', new Date(rec.t || Date.now()).toISOString().slice(0, 10).replace(/-/g, '.'),
+      'White', safe(names.w), 'Black', safe(names.b), 'Result', result);
+    const wRating = rec.imported ? rec.wElo : (rec.color === 'w' ? rec.after - rec.delta : rv.bot.elo);
+    const bRating = rec.imported ? rec.bElo : (rec.color === 'b' ? rec.after - rec.delta : rv.bot.elo);
+    if (Number.isFinite(wRating) && wRating > 0) ch.header('WhiteElo', String(Math.round(wRating)));
+    if (Number.isFinite(bRating) && bRating > 0) ch.header('BlackElo', String(Math.round(bRating)));
+    for (const u of rec.moves) ch.move(uciParts(u));
+    return ch.pgn({ maxWidth: 80 }) + '\n';
+  }
+  function reviewPgnFile() {
+    const stamp = new Date(rv.rec.t || Date.now()).toISOString().slice(0, 10);
+    return new File([reviewPgn()], 'chess-vs-bots-' + stamp + '.pgn', { type: 'application/x-chess-pgn' });
+  }
+  function downloadReviewPgn() {
+    if (!rv) return;
+    const file = reviewPgnFile(), url = URL.createObjectURL(file);
+    const a = document.createElement('a'); a.href = url; a.download = file.name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+  async function shareReview() {
+    if (!rv) return;
+    const file = reviewPgnFile(), title = 'Chess vs Bots · ' + file.name;
+    if (navigator.share) {
+      try {
+        if (!navigator.canShare || navigator.canShare({ files: [file] })) {
+          await navigator.share({ title, files: [file] });
+        } else {
+          await navigator.share({ title, text: reviewPgn() });
+        }
+        return;
+      } catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    // Browsers without a share sheet can still save the full PGN.
+    downloadReviewPgn();
+  }
+
   function scrollToBoard() { try { $('revBoardOuter').scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {} }
 
   function drawEvalGraph() {
@@ -1669,9 +1740,22 @@
     $('mvLast').addEventListener('click', () => { soundClick(); exitView(); });
     $('moveTable').addEventListener('click', e => { const b = e.target.closest('button[data-k]'); if (b && G) viewTo(+b.dataset.k); });
     $('revLast').addEventListener('click', () => jumpTo(rv.rec.moves.length));
+    // Desktop review: arrows work without focusing a particular navigation button.
+    document.addEventListener('keydown', e => {
+      if (!rv || !$('reviewScreen').classList.contains('active') || $('reviewBody').style.display === 'none') return;
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.isComposing) return;
+      const target = e.target;
+      if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        jumpTo(rv.ply + (e.key === 'ArrowRight' ? 1 : -1));
+      }
+    });
     $('revFlip').addEventListener('click', () => { rv.flipped = !rv.flipped; rv.board.flip(); updateEvalBar(); renderPlayerBars(); });
     $('revRematch').addEventListener('click', () => { const b = rv.bot, c = rv.rec.color; startNewGame(b.id, c === 'w' ? 'b' : 'w'); });
     $('revOther').addEventListener('click', () => showScreen('botsScreen'));
+    $('revShare').addEventListener('click', shareReview);
+    $('revDownload').addEventListener('click', downloadReviewPgn);
     const eg = $('evalGraph');
     let dragging = false;
     eg.addEventListener('pointerdown', e => { dragging = true; try { eg.setPointerCapture(e.pointerId); } catch (_) {} graphPointer(e); });

@@ -244,10 +244,12 @@ window.ChessCore = (function () {
       const p = sqXY(a.from), q = sqXY(a.to);
       const x1 = p.x + 0.5, y1 = p.y + 0.5, x2 = q.x + 0.5, y2 = q.y + 0.5;
       const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len;
-      const head = 0.34, w = 0.13, tipX = x2 - ux * 0.06, tipY = y2 - uy * 0.06;
+      const head = 0.34, w = 0.13, off = a.offset || 0;
+      const shiftX = -uy * off, shiftY = ux * off;
+      const tipX = x2 - ux * 0.06 + shiftX, tipY = y2 - uy * 0.06 + shiftY;
       const bx = tipX - ux * head, by = tipY - uy * head;
       const g = el('g', { opacity: a.opacity || 0.82 });
-      g.appendChild(el('line', { x1: x1 + ux * 0.18, y1: y1 + uy * 0.18, x2: bx, y2: by, stroke: a.color, 'stroke-width': w, 'stroke-linecap': 'round' }));
+      g.appendChild(el('line', { x1: x1 + ux * 0.18 + shiftX, y1: y1 + uy * 0.18 + shiftY, x2: bx, y2: by, stroke: a.color, 'stroke-width': w, 'stroke-linecap': 'round' }));
       g.appendChild(el('polygon', { points: [tipX, tipY, bx - uy * 0.2, by + ux * 0.2, bx + uy * 0.2, by - ux * 0.2].join(','), fill: a.color }));
       B.svg.appendChild(g);
     }

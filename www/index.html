@@ -383,9 +383,9 @@ img.flag{object-fit:cover;box-shadow:0 0 0 1px rgba(0,0,0,.28);background:#fff}
 .revNav{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;max-width:520px;margin:4px auto 10px}
 .revNav button{background:var(--btn2);border-radius:12px;height:46px;font-size:18px}
 .evalGraph{display:block;width:100%;max-width:520px;height:80px;margin:0 auto 12px;background:var(--panel);border:1px solid var(--panel-border);border-radius:12px;touch-action:none}
-.cntRow{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;margin-top:8px}
-.cntRow div{text-align:center;background:var(--btn2);border-radius:10px;padding:7px 2px 6px}
-.cntRow b{display:block;font-size:19px;line-height:1.1}
+.cntRow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;width:100%;margin-top:8px}
+.cntRow div{text-align:center;background:var(--btn2);border-radius:10px;padding:7px 1px 6px}
+.cntRow b{display:block;font-size:18px;line-height:1.1}
 .cntRow span{display:block;font-size:10.5px;color:var(--muted);margin-top:2px;overflow-wrap:anywhere}
 .revKey{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
 .keyCard{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--panel-border);border-radius:14px;padding:11px 13px;text-align:left;width:100%}
@@ -401,8 +401,8 @@ img.flag{object-fit:cover;box-shadow:0 0 0 1px rgba(0,0,0,.28);background:#fff}
 .revMoves button i{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
 .revBtns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .revBtns .bigbtn{padding:14px 8px;font-size:16px}
-:root{--q-best:#3fbf8f;--q-exc:#5ccfc4;--q-good:#7bb7e8;--q-inacc:#e7b743;--q-mistake:#f08a3c;--q-blunder:#ef5b5b;--q-brill:#18c2d6}
-[data-theme=light]{--q-best:#2f9a83;--q-exc:#2a9d9a;--q-good:#4a8fd0;--q-inacc:#c58f00;--q-mistake:#d9701c;--q-blunder:#d94b4b;--q-brill:#0e9db0}
+:root{--q-best:#3fbf8f;--q-exc:#5ccfc4;--q-good:#7bb7e8;--q-inacc:#e7b743;--q-mistake:#f08a3c;--q-blunder:#ef5b5b;--q-brill:#18c2d6;--q-great:#8c73ed}
+[data-theme=light]{--q-best:#2f9a83;--q-exc:#2a9d9a;--q-good:#4a8fd0;--q-inacc:#c58f00;--q-mistake:#d9701c;--q-blunder:#d94b4b;--q-brill:#0e9db0;--q-great:#7563d1}
 
 /* stats */
 /* statistics: period dropdown, opponents, import */
@@ -485,10 +485,10 @@ body.fullview .navBtn[data-nav=full]{background:var(--accent);color:#fff}
 .colDot{display:inline-block;flex:none;width:11px;height:11px;border-radius:3px;margin-right:7px;border:1px solid rgba(127,127,127,.7)}
 .colDot.w{background:#fff}.colDot.b{background:#262522}
 .revBoardRow .boardOuter{flex:1;min-width:0;max-width:none;margin:0}
-.evalBar{position:relative;width:22px;flex:none;border-radius:6px;overflow:hidden;background:#2b2a27;border:1px solid var(--panel-border)}
+.evalBar{position:relative;width:36px;flex:none;border-radius:6px;overflow:hidden;background:#2b2a27;border:1px solid var(--panel-border)}
 .ebWhite{position:absolute;left:0;right:0;bottom:0;height:50%;background:#f4f4f2;transition:height .25s ease}
 .evalBar.flip .ebWhite{bottom:auto;top:0}
-.ebTxt{position:absolute;left:0;right:0;font-size:10px;line-height:1;font-weight:800;text-align:center;letter-spacing:-.02em}
+.ebTxt{position:absolute;left:0;right:0;font-size:13px;line-height:1.1;font-weight:800;text-align:center;letter-spacing:-.02em}
 .ebTxt.top{top:3px}.ebTxt.bot{bottom:3px}
 .ebTxt.onW{color:#2b2a27}.ebTxt.onB{color:#f4f4f2}
 
@@ -693,6 +693,8 @@ body.fullview #playScreen .boardOuter,body.fullview #reviewScreen .revBoardWrap{
     <div class="revBtns">
       <button class="bigbtn primary" id="revRematch" data-i18n="rematch">Rematch</button>
       <button class="bigbtn soft" id="revOther" data-i18n="otherBot">Other opponent</button>
+      <button class="bigbtn soft" id="revShare" type="button">↗ <span data-i18n="reviewShare">Сподели партията</span></button>
+      <button class="bigbtn soft" id="revDownload" type="button">↓ <span data-i18n="reviewDownloadPgn">Изтегли PGN</span></button>
     </div>
   </div>
 </div>
@@ -853,6 +855,8 @@ body.fullview #playScreen .boardOuter,body.fullview #reviewScreen .revBoardWrap{
 <script src="bots.js"></script>
 <script src="native-services.bundle.js"></script>
 <script src="accuracy.js"></script>
+<script src="review-classification.js"></script>
+<script src="review-arrows.js"></script>
 <script src="game.js"></script>
 <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');</script>
 </body>
