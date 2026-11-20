@@ -974,6 +974,7 @@
     $('goRating').innerHTML = tt('rating') + ': ' + before + ' → <b>' + stats.rating + '</b> <span class="' + cls + '">(' + fmtDelta(delta) + ')</span>' +
       (rec.stars ? '<div class="goStars">' + starsHtml(rec.stars) + '</div><small style="font-weight:500;color:var(--muted)">' + tt('star' + rec.stars + 'Why') + '</small>' : '') +
       (assisted && rec.res !== 'l' ? '<br><small style="font-weight:500;color:var(--muted)">' + tt('assistedNote') + '</small>' : '');
+    tacticsCtaGameOver(rec, bot);
     $('gameOverlay').style.display = 'flex';
     if (rec.res === 'w') { soundWin(); doVibrate(120); } else if (rec.res === 'l') { soundLose(); doVibrate(250); } else { soundDraw(); doVibrate(100); }
   }
@@ -1017,9 +1018,13 @@
   function renderPlayerBars() {
     if (!rv) return;
     const bottom = ((rv.rec.color === 'w') !== !!rv.flipped) ? 'w' : 'b';
+    const clocks = window.ChessReviewClocks.atPly(rv.rec.clocks, rv.ply);
     const mk = (id, side) => {
       const p = revPlayerInfo(side);
-      $(id).innerHTML = '<div class="pAvatar">' + p.av + '</div><div class="pInfo"><div class="pName"><i class="colDot ' + side + '" aria-hidden="true"></i>' + esc(p.name) + (p.elo != null ? '<small>(' + p.elo + ')</small>' : '') + ' ' + p.flag + '</div></div>';
+      const time = window.ChessReviewClocks.format(clocks[side]);
+      const timer = time ? '<span class="revClock" role="timer" aria-label="' + esc(tt('reviewTimeRemaining')) + ': ' + time + '" title="' + esc(tt('reviewTimeRemaining')) + '">' +
+        '<span class="revClockIcon" aria-hidden="true">◷</span>' + time + '</span>' : '';
+      $(id).innerHTML = '<div class="pAvatar">' + p.av + '</div><div class="pInfo"><div class="pName"><i class="colDot ' + side + '" aria-hidden="true"></i>' + esc(p.name) + (p.elo != null ? '<small>(' + p.elo + ')</small>' : '') + ' ' + p.flag + '</div></div>' + timer;
     };
     mk('revTop', bottom === 'w' ? 'b' : 'w'); mk('revBottom', bottom);
   }
@@ -1173,6 +1178,7 @@
       ? window.ChessReviewArrows.forMove(rec.moves[k - 1], an.best && an.best[k - 1], an.cls[k - 1])
       : [];
     b.setArrows(arrows);
+    renderPlayerBars();             // clocks follow the selected PGN ply (also when board is flipped)
     renderReviewLabel();
     highlightReviewMove();
   }
@@ -1265,6 +1271,8 @@
       key.appendChild(countsCard(tt('oppMoves'), an.countsOpp));
       keyCards(an.key, '');
     }
+    const cta = tacticsCtaReview(an.counts);
+    if (cta) key.appendChild(cta);
     // move list
     const ml = $('revMoves'); ml.innerHTML = '';
     for (let i = 0; i < rec.moves.length; i++) {
@@ -1298,7 +1306,12 @@
     const bRating = rec.imported ? rec.bElo : (rec.color === 'b' ? rec.after - rec.delta : rv.bot.elo);
     if (Number.isFinite(wRating) && wRating > 0) ch.header('WhiteElo', String(Math.round(wRating)));
     if (Number.isFinite(bRating) && bRating > 0) ch.header('BlackElo', String(Math.round(bRating)));
-    for (const u of rec.moves) ch.move(uciParts(u));
+    if (rec.timeControl) ch.header('TimeControl', safe(rec.timeControl));
+    for (let i = 0; i < rec.moves.length; i++) {
+      ch.move(uciParts(rec.moves[i]));
+      const ms = rec.clocks && rec.clocks.moves && rec.clocks.moves[i];
+      if (Number.isFinite(ms) && ms >= 0) ch.setComment(window.ChessReviewClocks.comment(ms));
+    }
     return ch.pgn({ maxWidth: 80 }) + '\n';
   }
   function reviewPgnFile() {
@@ -1512,6 +1525,9 @@
     const hist = c.history({ verbose: true });
     if (!hist.length) throw 'importErrShort';
     const moves = hist.map(m => m.from + m.to + (m.promotion || ''));
+    // Parse [%clk] annotations by position, not by naïve regular expressions
+    // over PGN text (which can include variations and other comments).
+    const clocks = window.ChessReviewClocks.parseGame(c, Chess);
     const clean = v => (v && v !== '?' ? String(v).slice(0, 40) : '');
     const wName = clean(h.White), bName = clean(h.Black);
     let rs = h.Result;
@@ -1519,7 +1535,8 @@
     const elo = v => { const n = parseInt(v, 10); return n > 0 && n < 4000 ? n : null; };
     // names of both players come from the file; the game is shown from White's side and both players are analysed
     return { id: Date.now(), t: Date.now(), imported: true, color: 'w', res: 'u', score: rs, moves,
-      wName, bName, wElo: elo(h.WhiteElo), bElo: elo(h.BlackElo), myName: wName, oppName: bName };
+      wName, bName, wElo: elo(h.WhiteElo), bElo: elo(h.BlackElo), myName: wName, oppName: bName,
+      clocks, timeControl: h.TimeControl || null };
   }
   function startImport() {
     const err = $('importErr'); err.textContent = '';
@@ -1528,7 +1545,8 @@
     catch (e) { err.textContent = tt(typeof e === 'string' ? e : 'importErrPgn'); return; }
     // the same game again: reuse the stored one (and its analysis), but from the chosen side
     const same = stats.imports.find(r => r.moves.join(' ') === rec.moves.join(' '));
-    if (same) { Object.assign(same, { color: rec.color, res: rec.res, score: rec.score, wName: rec.wName, bName: rec.bName, wElo: rec.wElo, bElo: rec.bElo, myName: rec.myName, oppName: rec.oppName }); stats.imports = [same].concat(stats.imports.filter(r => r !== same)); rec = same; }
+    if (same) { Object.assign(same, { color: rec.color, res: rec.res, score: rec.score, wName: rec.wName, bName: rec.bName, wElo: rec.wElo, bElo: rec.bElo, myName: rec.myName, oppName: rec.oppName,
+      clocks: rec.clocks || same.clocks || null, timeControl: rec.timeControl || same.timeControl || null }); stats.imports = [same].concat(stats.imports.filter(r => r !== same)); rec = same; }
     else { stats.imports.unshift(rec); if (stats.imports.length > MAX_IMPORTS) stats.imports.length = MAX_IMPORTS; }
     saveStats();
     openReview(rec, 'statsScreen');
@@ -1617,9 +1635,71 @@
     $('privBody').innerHTML = (d.priv || window.CHESS_I18N.en.priv).map(([h, p]) =>
       '<div class="privSec"><h3>' + h + '</h3><p>' + String(p).replace('{email}', email).replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</p></div>').join('');
   }
+  // ── Links to the puzzle game Chess Tactics Gym ───────────────────────────
+  // Every button carries its own campaign name (data-ct), so App Store Connect → App Analytics can show how many
+  // installs come from the home screen, settings, the game-over card or the review. Nothing is collected by this app.
+  function tacticsBaseUrl() {
+    const N = window.ChessNative;
+    return N && N.platform === 'android' ? (window.TACTICS_URL_ANDROID || '') : (window.TACTICS_URL || '');
+  }
+  function tacticsUrl(ct) {
+    const base = tacticsBaseUrl();
+    if (!base) return '';
+    try {
+      const u = new URL(base);
+      if (/(^|\.)apple\.com$/.test(u.hostname)) {
+        if (window.TACTICS_PT) u.searchParams.set('pt', String(window.TACTICS_PT));
+        if (ct) u.searchParams.set('ct', ct);
+        if (window.TACTICS_PT) u.searchParams.set('mt', '8');
+      } else if (/(^|\.)play\.google\.com$/.test(u.hostname) && ct) {
+        u.searchParams.set('referrer', 'utm_source=chessvsbots&utm_medium=app&utm_campaign=' + ct);
+      }
+      return u.toString();
+    } catch (_) { return base; }
+  }
+  function tacticsAppId() { const m = /\/id(\d+)/.exec(window.TACTICS_URL || ''); return m ? m[1] : ''; }
   function applyTacticsLinks() {
-    const url = window.TACTICS_URL || '#';
-    ['homeTactics', 'settTactics'].forEach(id => { const a = $(id); if (a) a.setAttribute('href', url); });
+    const hasLink = !!tacticsBaseUrl();
+    document.querySelectorAll('a.tacticsLink').forEach(a => {
+      const url = tacticsUrl(a.dataset.ct || '');
+      a.setAttribute('href', url || '#');
+      if (!hasLink) a.style.display = 'none';
+    });
+  }
+  // iOS app: show the App Store page inside the app (the player stays in the game); otherwise the link opens normally
+  document.addEventListener('click', ev => {
+    const a = ev.target && ev.target.closest ? ev.target.closest('a.tacticsLink') : null;
+    if (!a) return;
+    const N = window.ChessNative;
+    if (!N || !N.isNative || N.platform !== 'ios' || !N.openStore || !tacticsAppId()) return;
+    ev.preventDefault();
+    const href = a.getAttribute('href');
+    N.openStore({ appId: tacticsAppId(), providerToken: window.TACTICS_PT || '', campaignToken: a.dataset.ct || '' }).then(shown => {
+      if (shown) return;
+      // fallback: open the link the usual way (App Store app)
+      const tmp = document.createElement('a'); tmp.href = href; tmp.target = '_blank'; tmp.rel = 'noopener'; tmp.className = 'tacticsFallback';
+      document.body.appendChild(tmp); tmp.click(); tmp.remove();
+    });
+  });
+  // one small, context-aware suggestion on the game-over card: after a loss, or after a flawless (3-star) win
+  function tacticsCtaGameOver(rec, bot) {
+    const el = $('goTactics');
+    if (!el) return;
+    const txt = rec.res === 'l' ? tt('ctaLoss', { bot: bot.name }) : rec.stars === 3 ? tt('ctaWin3') : '';
+    if (!txt || !tacticsBaseUrl()) { el.style.display = 'none'; return; }
+    el.querySelector('.ctaTxt').textContent = txt;
+    el.setAttribute('href', tacticsUrl(el.dataset.ct));
+    el.style.display = '';
+  }
+  // in the review: only when the player made mistakes or blunders (puzzles train exactly those patterns)
+  function tacticsCtaReview(counts) {
+    const n = counts ? (counts.mistake || 0) + (counts.blunder || 0) : 0;
+    if (!n || !tacticsBaseUrl()) return null;
+    const a = document.createElement('a');
+    a.className = 'keyCard tacticsLink ctaCard'; a.target = '_blank'; a.rel = 'noopener'; a.dataset.ct = 'cvb_review';
+    a.setAttribute('href', tacticsUrl('cvb_review'));
+    a.innerHTML = '<div class="kIco">🧩</div><div class="kTxt"><b>' + esc(tt('ctaReviewTitle')) + '</b><span>' + esc(tt('ctaReviewText', { n })) + '</span><em>Chess Tactics Gym ›</em></div>';
+    return a;
   }
 
   // ── Navigation buttons on every page: full view, settings, home ───────────
@@ -1811,7 +1891,7 @@
     renderHome();
     showScreen('homeScreen');
     setTimeout(() => { try { Engine.start(); } catch (e) {} }, 1200);     // warm the engine up while the menu is shown
-    window.__cvb = { get G() { return G; }, get stats() { return stats; }, get prefs() { return prefs; }, get saved() { return saved; }, get profile() { return profile; }, saveStats, get rv() { return rv; }, board: () => board, scoreGame, viewTo, exitView, openReview, startNewGame, endGame, refresh: () => updatePlayUI() };
+    window.__cvb = { get G() { return G; }, get stats() { return stats; }, get prefs() { return prefs; }, get saved() { return saved; }, get profile() { return profile; }, saveStats, get rv() { return rv; }, board: () => board, scoreGame, viewTo, exitView, openReview, startNewGame, endGame, applyTacticsLinks, tacticsUrl, refresh: () => updatePlayUI() };
   }
 
   document.addEventListener('DOMContentLoaded', init);

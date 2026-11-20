@@ -369,6 +369,10 @@ img.flag{object-fit:cover;box-shadow:0 0 0 1px rgba(0,0,0,.28);background:#fff}
 .goRating{font-size:16px;font-weight:700;color:var(--accent2);min-height:22px;margin-bottom:12px}
 .goRating .up{color:var(--easy)}.goRating .down{color:var(--hard)}
 .goBtns{display:flex;flex-direction:column;gap:8px}
+.goTactics{display:block;margin:0 0 12px;padding:10px 12px;border-radius:12px;background:var(--btn2);color:var(--text);font-size:14px;line-height:1.35;text-decoration:none;text-align:center}
+.goTactics b{color:var(--accent);white-space:nowrap}
+a.keyCard.ctaCard{display:flex;text-align:left;text-decoration:none;color:var(--text);border-color:var(--accent)}
+a.ctaCard .kTxt em{display:block;font-style:normal;font-weight:700;color:var(--accent);margin-top:4px}
 .goBtns .bigbtn{padding:13px 16px;font-size:16px}
 
 /* review */
@@ -482,6 +486,11 @@ body.fullview .navBtn[data-nav=full]{background:var(--accent);color:#fff}
 .revPlayer .pAvatar,.revPlayer .pAvatar .botAvatar{width:32px;height:32px}
 .revPlayer .pName{display:flex;align-items:center;gap:0}
 .revPlayer .pName small{margin:0 5px 0 5px}
+.revClock{display:inline-flex;align-items:center;gap:4px;margin-left:auto;flex-shrink:0;
+  padding:5px 9px;border:1px solid var(--panel-border);border-radius:9px;background:var(--btn2);
+  font-weight:800;font-size:14px;line-height:1;font-variant-numeric:tabular-nums;color:var(--ink)}
+.revClockIcon{font-size:17px;line-height:1;color:var(--muted)}
+.revBuild{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.02em;flex-shrink:0}
 .colDot{display:inline-block;flex:none;width:11px;height:11px;border-radius:3px;margin-right:7px;border:1px solid rgba(127,127,127,.7)}
 .colDot.w{background:#fff}.colDot.b{background:#262522}
 .revBoardRow .boardOuter{flex:1;min-width:0;max-width:none;margin:0}
@@ -500,9 +509,9 @@ body.fullview .navBtn[data-nav=full]{background:var(--accent);color:#fff}
   .revBoardWrap{max-width:min(100%,max(350px,calc(100vh - 400px)));max-width:min(100%,max(350px,calc(100dvh - 400px)))}
 }
 @media(min-width:980px) and (orientation:landscape){
-  .app{max-width:1180px}
+  .app{max-width:1280px}
   .screen:not(#playScreen):not(#reviewScreen){max-width:680px;margin-left:auto;margin-right:auto}
-  #playScreen.active{display:grid;grid-template-columns:min(calc(100vh - 190px),58vw) minmax(280px,1fr);grid-template-columns:min(calc(100dvh - 190px),58vw) minmax(280px,1fr);column-gap:30px;grid-template-rows:auto auto auto auto 1fr auto;align-items:start}
+  #playScreen.active{display:grid;grid-template-columns:min(calc(100vh - 190px),62vw) minmax(300px,1fr);grid-template-columns:min(calc(100dvh - 190px),62vw) minmax(300px,1fr);column-gap:30px;grid-template-rows:auto auto auto auto 1fr auto;align-items:start}
   #playScreen .playTop{grid-column:2;grid-row:1;margin-top:8px}
   #playScreen #oppBar{grid-column:1;grid-row:1}
   #playScreen .boardOuter{grid-column:1;grid-row:2 / span 4;max-width:none;width:100%;margin:0}
@@ -510,8 +519,15 @@ body.fullview .navBtn[data-nav=full]{background:var(--accent);color:#fff}
   #playScreen .note{grid-column:2;grid-row:2}
   #playScreen .moveStrip{display:none}
   #playScreen .gameControls{grid-column:2;grid-row:3;max-width:none;width:100%}
-  #playScreen .moveTableWrap{display:block;grid-column:2;grid-row:4 / span 2;width:100%;margin-top:6px}
-  #playScreen .moveTable{max-height:max(150px,calc(min(100vh - 190px,58vw) - 280px));max-height:max(150px,calc(min(100dvh - 190px,58vw) - 280px))}
+  #playScreen .moveTableWrap{display:block;grid-column:2;grid-row:4 / span 2;width:100%;margin-top:14px;background:var(--panel);border:1px solid var(--panel-border);border-radius:16px;padding:12px 12px 10px;box-sizing:border-box}
+  #playScreen .moveTable{max-height:max(150px,calc(min(100vh - 190px,62vw) - 330px));max-height:max(150px,calc(min(100dvh - 190px,62vw) - 330px))}
+  /* bigger, easier to hit controls in the side panel (iPad in landscape) */
+  #playScreen .note{font-size:17px;font-weight:600;margin:6px 0 10px}
+  #playScreen .gameControls{gap:10px}
+  #playScreen .gameControls button{padding:14px 2px 11px;border-radius:16px;gap:3px}
+  #playScreen .gameControls .ci{font-size:27px}
+  #playScreen .gameControls .cl{font-size:14px}
+  #playScreen .mtNav button{height:50px}
   /* review: board with the evaluation bar on the left, everything else on the right */
   #reviewScreen{max-width:none}
   #reviewBody{display:grid;grid-template-columns:min(calc(100vh - 230px),56vw) minmax(300px,1fr);grid-template-columns:min(calc(100dvh - 230px),56vw) minmax(300px,1fr);column-gap:30px;align-items:start}
@@ -554,7 +570,7 @@ body.fullview #playScreen .boardOuter,body.fullview #reviewScreen .revBoardWrap{
       <button class="bigbtn dark" id="settBtn"><span class="btnGear" aria-hidden="true">⚙️</span> <span data-i18n="settings">Settings</span></button>
     </div>
     <button class="bigbtn dark" id="aboutHomeBtn" data-i18n="about">About</button>
-    <a class="tacticsBtn tacticsLink homeTactics" id="homeTactics" target="_blank" rel="noopener" href="#"><span aria-hidden="true">🧩</span> <span data-i18n="tacticsBtn">Chess puzzles — Chess Tactics Gym</span></a>
+    <a class="tacticsBtn tacticsLink homeTactics" id="homeTactics" data-ct="cvb_home" target="_blank" rel="noopener" href="#"><span aria-hidden="true">🧩</span> <span data-i18n="tacticsBtn">Chess puzzles — Chess Tactics Gym</span></a>
   </div>
 </div>
 
@@ -665,6 +681,7 @@ body.fullview #playScreen .boardOuter,body.fullview #reviewScreen .revBoardWrap{
   <div class="topbar">
     <button class="back" id="reviewBack">‹</button>
     <h2 data-i18n="reviewTitle">Game review</h2>
+    <small class="revBuild" aria-label="Version 1.0.18">v1.0.18</small>
   </div>
   <div id="reviewProgress" class="revProg" style="display:none">
     <div class="revProgText" id="revProgText"></div>
@@ -744,7 +761,7 @@ body.fullview #playScreen .boardOuter,body.fullview #reviewScreen .revBoardWrap{
   <div class="settGroup" id="privGroup">
     <button class="settRow linkRow" id="privBtn"><span class="label" data-i18n="privacyPolicy">Privacy Policy</span><span class="chev">›</span></button>
   </div>
-  <a class="tacticsBtn tacticsLink" id="settTactics" target="_blank" rel="noopener" href="#"><span aria-hidden="true">🧩</span> <span data-i18n="tacticsBtn">Chess puzzles — Chess Tactics Gym</span></a>
+  <a class="tacticsBtn tacticsLink" id="settTactics" data-ct="cvb_settings" target="_blank" rel="noopener" href="#"><span aria-hidden="true">🧩</span> <span data-i18n="tacticsBtn">Chess puzzles — Chess Tactics Gym</span></a>
   <button class="bigbtn" id="aboutBtn" data-i18n="about">About</button>
 </div>
 
@@ -823,6 +840,7 @@ body.fullview #playScreen .boardOuter,body.fullview #reviewScreen .revBoardWrap{
     <h3 id="goTitle"></h3>
     <div class="goReason" id="goReason"></div>
     <div class="goRating" id="goRating"></div>
+    <a class="goTactics tacticsLink" id="goTactics" data-ct="cvb_gameover" target="_blank" rel="noopener" href="#" style="display:none"><span aria-hidden="true">🧩</span> <span class="ctaTxt"></span> <b>Chess Tactics Gym ›</b></a>
     <div class="goBtns">
       <button class="bigbtn primary" id="goReview" data-i18n="reviewGame">Review game</button>
       <button class="bigbtn soft" id="goRematch" data-i18n="rematch">Rematch</button>
@@ -845,19 +863,29 @@ body.fullview #playScreen .boardOuter,body.fullview #reviewScreen .revBoardWrap{
 
 <div class="toast" id="toast"></div>
 
-<script src="chess.min.js"></script>
-<script src="privacy-config.js"></script>
-<script src="i18n.js"></script>
-<script src="pieces-extra.js"></script>
-<script src="chess-core.js"></script>
-<script src="engine.js"></script>
-<script src="avatars.js"></script>
-<script src="bots.js"></script>
-<script src="native-services.bundle.js"></script>
-<script src="accuracy.js"></script>
-<script src="review-classification.js"></script>
-<script src="review-arrows.js"></script>
-<script src="game.js"></script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');</script>
+<script src="chess.min.js?v=1018"></script>
+<script src="privacy-config.js?v=1018"></script>
+<script src="i18n.js?v=1018"></script>
+<script src="pieces-extra.js?v=1018"></script>
+<script src="chess-core.js?v=1018"></script>
+<script src="engine.js?v=1018"></script>
+<script src="avatars.js?v=1018"></script>
+<script src="bots.js?v=1018"></script>
+<script src="native-services.bundle.js?v=1018"></script>
+<script src="accuracy.js?v=1018"></script>
+<script src="review-classification.js?v=1018"></script>
+<script src="review-arrows.js?v=1018"></script>
+<script src="review-clocks.js?v=1018"></script>
+<script src="game.js?v=1018"></script>
+<script>if ('serviceWorker' in navigator) {
+  const hadController = !!navigator.serviceWorker.controller;
+  let refreshed = false;
+  // Once a new release takes control, reload to prevent mixing old game.js
+  // with new CSS and analysis helpers in an already-open browser tab.
+  if (hadController) navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!refreshed) { refreshed = true; location.reload(); }
+  });
+  navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).catch(console.warn);
+}</script>
 </body>
 </html>

@@ -38,11 +38,12 @@
     const actual = squares(played), suggested = squares(best);
     if (!actual) return [];
     const special = category === 'brilliant' || category === 'great';
-    // Always honour a Brilliant/Great label over the engine-best colour.
-    // Otherwise a move that matches Stockfish's top choice is *one* green arrow.
+    // Keep the arrow colour consistent with the VISIBLE classification badge.
+    // An occasional engine-PV/category disagreement must not produce a green
+    // arrow under a blue Good (or teal Excellent) label. Best is green.
+    // When best and played share a path, draw that path only ONCE.
     const same = equal(actual, suggested);
-    const actualCategory = special ? category : (same || category === 'best') ? 'best' : category;
-    const arrows = [{ ...actual, color: colorFor(actualCategory, palette), opacity: 0.94 }];
+    const arrows = [{ ...actual, color: colorFor(category, palette), opacity: 0.94 }];
     if (!special && category !== 'best' && !same && suggested)
       arrows.push({ ...suggested, color: colorFor('best', palette), opacity: 0.89 });
     return arrows;

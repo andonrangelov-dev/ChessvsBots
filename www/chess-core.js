@@ -369,7 +369,16 @@ window.ChessCore = (function () {
       flip() { B.orient = B.orient === 'white' ? 'black' : 'white'; render(); },
       getOrientation() { return B.orient; },
       setLast(from, to) { B.last = from ? { from, to } : null; },
-      setArrows(list) { B.arrows = list || []; render(); },
+      setArrows(list) {
+        // Safety net: never draw overlapping paths twice, even if a caller
+        // supplies the same move more than once (e.g. a stale cached review).
+        const unique = new Map();
+        for (const a of list || []) if (a && /^[a-h][1-8]$/.test(a.from) && /^[a-h][1-8]$/.test(a.to)) {
+          unique.set(a.from + a.to, a);
+        }
+        B.arrows = [...unique.values()];
+        render();
+      },
       setHintSquare(sq) { B.hintSq = sq || null; render(); },
       setMover(m) { B.mover = m; B.sel = null; B.targets = []; },
       setShowLegal(v) { B.showLegal = !!v; render(); },

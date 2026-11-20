@@ -65,12 +65,12 @@
             console.warn(`Capacitor plugin "${pluginName}" already registered. Cannot register plugins twice.`);
             return registeredPlugin.proxy;
           }
-          const platform = getPlatform();
+          const platform2 = getPlatform();
           const pluginHeader = getPluginHeader(pluginName);
           let jsImplementation;
           const loadPluginImplementation = async () => {
-            if (!jsImplementation && platform in jsImplementations) {
-              jsImplementation = typeof jsImplementations[platform] === "function" ? jsImplementation = await jsImplementations[platform]() : jsImplementation = jsImplementations[platform];
+            if (!jsImplementation && platform2 in jsImplementations) {
+              jsImplementation = typeof jsImplementations[platform2] === "function" ? jsImplementation = await jsImplementations[platform2]() : jsImplementation = jsImplementations[platform2];
             } else if (capCustomPlatform !== null && !jsImplementation && "web" in jsImplementations) {
               jsImplementation = typeof jsImplementations["web"] === "function" ? jsImplementation = await jsImplementations["web"]() : jsImplementation = jsImplementations["web"];
             }
@@ -92,7 +92,7 @@
             } else if (impl) {
               return (_b = impl[prop]) === null || _b === void 0 ? void 0 : _b.bind(impl);
             } else {
-              throw new CapacitorException(`"${pluginName}" plugin is not implemented on ${platform}`, ExceptionCode.Unimplemented);
+              throw new CapacitorException(`"${pluginName}" plugin is not implemented on ${platform2}`, ExceptionCode.Unimplemented);
             }
           };
           const createPluginMethodWrapper = (prop) => {
@@ -105,7 +105,7 @@
                   remove = p2 === null || p2 === void 0 ? void 0 : p2.remove;
                   return p2;
                 } else {
-                  throw new CapacitorException(`"${pluginName}.${prop}()" is not implemented on ${platform}`, ExceptionCode.Unimplemented);
+                  throw new CapacitorException(`"${pluginName}.${prop}()" is not implemented on ${platform2}`, ExceptionCode.Unimplemented);
                 }
               });
               if (prop === "addListener") {
@@ -160,7 +160,7 @@
           registeredPlugins.set(pluginName, {
             name: pluginName,
             proxy,
-            platforms: /* @__PURE__ */ new Set([...Object.keys(jsImplementations), ...pluginHeader ? [platform] : []])
+            platforms: /* @__PURE__ */ new Set([...Object.keys(jsImplementations), ...pluginHeader ? [platform2] : []])
           });
           return proxy;
         };
@@ -672,6 +672,8 @@
 
   // src/native-services.js
   var isNative = Capacitor.isNativePlatform();
+  var platform = Capacitor.getPlatform ? Capacitor.getPlatform() : isNative ? "ios" : "web";
+  var StoreSheet = registerPlugin("StoreSheet");
   function vibrate(ms) {
     if (!isNative) {
       try {
@@ -699,7 +701,22 @@
     if (!isNative) throw new Error("share unavailable");
     await Share.share({ title: payload.title, text: payload.text, url: payload.url, dialogTitle: payload.title });
   }
-  window.ChessNative = { share, isNative, vibrate, setStatusBarStyle };
+  async function openStore(opts) {
+    if (!isNative || platform !== "ios") return false;
+    try {
+      if (Capacitor.isPluginAvailable && !Capacitor.isPluginAvailable("StoreSheet")) return false;
+    } catch (_) {
+      return false;
+    }
+    if (!opts || !/^\d+$/.test(String(opts.appId || ""))) return false;
+    try {
+      await StoreSheet.open({ appId: String(opts.appId), providerToken: opts.providerToken || "", campaignToken: opts.campaignToken || "" });
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+  window.ChessNative = { share, isNative, platform, vibrate, setStatusBarStyle, openStore };
 })();
 /*! Bundled license information:
 
